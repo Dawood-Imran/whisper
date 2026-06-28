@@ -1,12 +1,12 @@
 # Testing Voice Codex Phase 1
 
-This guide verifies the Phase 1 prototype:
+This guide verifies the Phase 1 one-shot prototype and the Phase 2 hotkey daemon:
 
 ```text
 preflight -> fixed recording -> Deepgram Flux transcription -> clipboard/direct insertion
 ```
 
-Phase 1 does not include the daemon, global hotkey, systemd service, silence detection, GUI, or auto-submit.
+Phase 2 includes a foreground daemon with a global toggle hotkey. It does not include systemd installation, silence detection, GUI, or auto-submit.
 
 ## Model Used
 
@@ -82,6 +82,7 @@ Expected output includes:
 - Linux session type.
 - Deepgram engine, model, endpoint, and API key status.
 - Python package readiness.
+- Hotkey dependency readiness.
 - System command readiness.
 - Audio input devices.
 - Clipboard backend.
@@ -164,7 +165,51 @@ If final Deepgram messages arrive slowly:
 voice-codex-once --duration 5 --close-timeout 15 --no-paste
 ```
 
-## 9. Common Failure Modes
+## 9. Test The Phase 2 Daemon
+
+Start the daemon in a terminal:
+
+```bash
+voice-codex-daemon
+```
+
+Or:
+
+```bash
+python -m voice_codex daemon
+```
+
+Default hotkey:
+
+```text
+Ctrl+Alt+R
+```
+
+Expected behavior:
+
+1. The daemon starts and logs the configured hotkey.
+2. Pressing `Ctrl+Alt+R` starts recording.
+3. Pressing `Ctrl+Alt+R` again stops recording.
+4. The daemon sends audio to Deepgram Flux.
+5. The transcript is copied or inserted.
+6. The daemon returns to idle.
+7. You manually review and press Enter in Codex.
+
+Use a custom hotkey if needed:
+
+```bash
+voice-codex-daemon --hotkey '<ctrl>+<shift>+space'
+```
+
+Keep daemon audio for debugging:
+
+```bash
+voice-codex-daemon --keep-audio --audio-dir ./recordings
+```
+
+On Wayland, the desktop session may block global keyboard listeners. If the daemon starts but never receives the hotkey, keep using `voice-codex-once` while we add a desktop-specific trigger path in a later phase.
+
+## 10. Common Failure Modes
 
 ### Missing Python Packages
 
@@ -173,6 +218,8 @@ If preflight reports missing Python packages, reinstall the project:
 ```bash
 python -m pip install -e .
 ```
+
+If the daemon reports missing `pynput`, rerun the same install command.
 
 ### Missing Deepgram API Key
 
@@ -226,13 +273,14 @@ wss://api.deepgram.com/v2/listen
 
 If the command fails during transcription, verify the API key, network access, and Deepgram account status.
 
-## 10. Developer Checks
+## 11. Developer Checks
 
 Run syntax and unit checks:
 
 ```bash
 python -m compileall voice_codex tests
 python -m unittest discover -s tests
+python -m voice_codex daemon --help
 ```
 
 If development dependencies are installed:
@@ -248,6 +296,7 @@ Phase 1 is working when:
 
 - `voice-codex-preflight` gives clear environment diagnostics.
 - `voice-codex-once` records without crashing.
+- `voice-codex-daemon` starts and listens for the configured hotkey.
 - Deepgram Flux produces readable transcript text.
 - The transcript is copied to the clipboard or inserted into the focused terminal.
 - The command does not auto-submit to Codex.

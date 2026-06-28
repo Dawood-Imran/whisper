@@ -6,20 +6,20 @@ The canonical agent instruction file is `AGENTS.md`. Use that file for detailed 
 
 ## Active Phase
 
-Branch: `phase-1`
+Branch: `phase-2`
 
-Phase 1 should prove the core command-line loop before building the daemon:
+Phase 2 should prove the hotkey daemon workflow:
 
 1. Run a preflight check.
-2. Record fixed-duration microphone audio.
-3. Transcribe with Deepgram Flux using `DEEPGRAM_API_KEY`.
-4. Copy or insert the result into the focused terminal.
-5. Keep manual review and manual Enter.
+2. Run `voice-codex-daemon`.
+3. Press `Ctrl+Alt+R` to start recording.
+4. Press `Ctrl+Alt+R` again to stop recording.
+5. Transcribe with Deepgram Flux using `DEEPGRAM_API_KEY`.
+6. Copy or insert the result into the focused terminal.
+7. Keep manual review and manual Enter.
 
 ## Deferred Until Later
 
-- Background daemon.
-- Global hotkey listener.
 - User-level systemd service.
 - Silence detection.
 - Wayland-specific polish beyond safe clipboard fallback.

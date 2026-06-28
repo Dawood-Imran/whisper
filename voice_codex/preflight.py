@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Iterable
 
 from voice_codex.config import TRANSCRIPTION_DEFAULTS
+from voice_codex.hotkeys import session_warns_for_hotkeys
 
 
 @dataclass(frozen=True)
@@ -69,6 +70,7 @@ SYSTEM_TOOLS = (
 PYTHON_PACKAGES = (
     "sounddevice",
     "numpy",
+    "pynput",
     "websockets",
     "dotenv",
 )
@@ -222,10 +224,17 @@ def run_preflight() -> PreflightReport:
             "Python package 'websockets' is missing; Deepgram Flux transcription cannot run."
         )
 
+    if not package_map.get("pynput", False):
+        failures.append("Python package 'pynput' is missing; the Phase 2 hotkey daemon cannot run.")
+
     if not api_key_configured:
         failures.append(
             f"Environment variable '{api_key_env}' is missing; Deepgram API transcription cannot run."
         )
+
+    hotkey_warning = session_warns_for_hotkeys(session_type)
+    if hotkey_warning:
+        warnings.append(hotkey_warning)
 
     if not input_devices and package_map.get("sounddevice", False):
         warnings.append("No input microphone devices were detected by sounddevice.")
@@ -237,7 +246,7 @@ def run_preflight() -> PreflightReport:
 
     if insertion_mode == "clipboard-only":
         warnings.append(
-            "Direct terminal insertion is unavailable; Phase 1 can still copy text to the clipboard."
+            "Direct terminal insertion is unavailable; Voice Codex can still copy text to the clipboard."
         )
     elif insertion_mode == "ydotool-needs-clipboard":
         warnings.append(

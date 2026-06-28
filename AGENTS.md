@@ -18,35 +18,44 @@ Auto-submit must stay disabled by default.
 
 ## Current Phase
 
-The active branch for the first implementation slice is `phase-1`.
+The active branch for the second implementation slice is `phase-2`.
 
-Phase 1 is a minimal proof of the core loop. Do not start with the background daemon, global hotkey, systemd service, Wayland polish, GUI, or silence detection.
+Phase 2 turns the working one-shot flow into a foreground daemon with a global hotkey. Do not add systemd installation, GUI, auto-submit, or silence detection yet.
 
-Phase 1 should prove:
+Phase 2 should prove:
 
-- The microphone can record audio.
-- Deepgram Flux transcription works with the configured API key.
-- Text can be copied or inserted into the focused terminal.
-- The user can run a single command to exercise the flow.
+- The user can run `voice-codex-daemon`.
+- The configured hotkey toggles recording.
+- Stopping a recording transcribes through Deepgram Flux.
+- The result is copied or inserted into the focused terminal.
+- The daemon returns to idle after processing.
 
-## Phase 1 Scope
+## Phase 2 Scope
 
-Build a Python package with these first commands:
+Keep the existing Phase 1 commands:
 
 - `voice-codex-preflight`
 - `voice-codex-once`
+
+Add:
+
+- `voice-codex-daemon`
+- `voice-codex daemon`
 
 `voice-codex-preflight` should inspect:
 
 - Python version.
 - Linux session type from `XDG_SESSION_TYPE`.
 - Available microphone devices.
+- Python packages needed for recording, Deepgram, and hotkeys.
 - Required system commands such as `ffmpeg`, `xclip`, `wl-copy`, `xdotool`, or `ydotool`.
 - Whether the environment appears to support direct insertion or clipboard-only fallback.
 
-`voice-codex-once` should:
+`voice-codex-daemon` should:
 
-- Record fixed-duration audio.
+- Listen for `Ctrl+Alt+R` by default.
+- Start recording on the first hotkey press.
+- Stop recording on the second hotkey press.
 - Transcribe through Deepgram Flux using `/v2/listen`.
 - Copy the resulting text to the clipboard.
 - Attempt insertion into the active terminal when supported.
@@ -60,9 +69,10 @@ Build a Python package with these first commands:
 - API key env var: `DEEPGRAM_API_KEY`
 - Sample rate: `16000`
 - Channels: `1`
-- First recording mode: fixed duration
+- Daemon recording mode: manual hotkey toggle
+- Maximum daemon recording duration: `45` seconds
 - First insertion mode: clipboard plus X11 paste where available
-- First shortcut default later: `Ctrl+Alt+R`, not `Ctrl+R`
+- Hotkey default: `Ctrl+Alt+R`, not `Ctrl+R`
 
 ## Implementation Guidance
 
@@ -74,10 +84,12 @@ Suggested package modules:
 - `voice_codex/recorder.py`
 - `voice_codex/transcriber.py`
 - `voice_codex/inserter.py`
+- `voice_codex/hotkeys.py`
+- `voice_codex/daemon.py`
 - `voice_codex/preflight.py`
 - `voice_codex/cli.py`
 
-Avoid mixing daemon concerns into Phase 1 modules. The daemon should later orchestrate stable recorder, transcriber, vocabulary, and inserter functions.
+Keep daemon orchestration separate from the fixed-duration one-shot command. The daemon should call stable recorder, transcriber, and inserter functions rather than duplicating them.
 
 ## Safety and Privacy
 
@@ -113,6 +125,13 @@ For Phase 1, prioritize practical verification:
 - Run a Deepgram transcription test with `DEEPGRAM_API_KEY` configured.
 - Confirm copied text is available on the clipboard.
 - If X11 insertion is available, confirm text appears in the focused Codex CLI prompt.
+
+For Phase 2, also verify:
+
+- `voice-codex-daemon --help` works.
+- The daemon starts and reports the configured hotkey.
+- The hotkey starts/stops recording in the target desktop session.
+- If global hotkeys are blocked on Wayland, the daemon reports the limitation clearly and `voice-codex-once` remains usable.
 
 Add automated tests for deterministic code where practical, especially config parsing, vocabulary correction, and insertion command selection. Do not block the first prototype on full hardware-dependent test automation.
 

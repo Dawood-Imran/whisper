@@ -26,6 +26,14 @@ class InsertionDefaults:
     paste: bool = True
 
 
+@dataclass(frozen=True)
+class DaemonDefaults:
+    hotkey: str = "<ctrl>+<alt>+r"
+    max_duration_seconds: float = 45.0
+    keep_audio: bool = False
+
+
 RECORDING_DEFAULTS = RecordingDefaults()
 TRANSCRIPTION_DEFAULTS = TranscriptionDefaults()
 INSERTION_DEFAULTS = InsertionDefaults()
+DAEMON_DEFAULTS = DaemonDefaults()

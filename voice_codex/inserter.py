@@ -55,8 +55,11 @@ def copy_to_clipboard(text: str, backend: str | None = None) -> str:
             "or 'xclip'/'xsel' on X11."
         )
 
+    if selected_backend == "wl-copy":
+        _copy_with_wl_copy(text)
+        return selected_backend
+
     commands = {
-        "wl-copy": ["wl-copy"],
         "xclip": ["xclip", "-selection", "clipboard"],
         "xsel": ["xsel", "--clipboard", "--input"],
     }
@@ -79,6 +82,43 @@ def copy_to_clipboard(text: str, backend: str | None = None) -> str:
         raise InsertionError(f"Clipboard copy failed with {selected_backend}{detail}") from exc
 
     return selected_backend
+
+
+def _copy_with_wl_copy(text: str) -> None:
+    command = ["wl-copy", "--type", "text/plain;charset=utf-8"]
+
+    try:
+        process = subprocess.Popen(
+            command,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            start_new_session=True,
+        )
+    except OSError as exc:
+        raise InsertionError(f"Could not start wl-copy: {exc}") from exc
+
+    assert process.stdin is not None
+    assert process.stderr is not None
+
+    try:
+        process.stdin.write(text.encode("utf-8"))
+        process.stdin.close()
+    except OSError as exc:
+        process.kill()
+        raise InsertionError(f"Could not send text to wl-copy: {exc}") from exc
+
+    try:
+        return_code = process.wait(timeout=0.2)
+    except subprocess.TimeoutExpired:
+        # This is normal on some Wayland setups: wl-copy remains alive to own
+        # and serve the clipboard. Leave it running instead of blocking the daemon.
+        return
+
+    if return_code != 0:
+        stderr = process.stderr.read().decode("utf-8", errors="replace").strip()
+        detail = f": {stderr}" if stderr else ""
+        raise InsertionError(f"Clipboard copy failed with wl-copy{detail}")
 
 
 def paste_into_active_window(

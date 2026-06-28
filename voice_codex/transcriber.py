@@ -214,6 +214,7 @@ async def _send_wav_as_linear16(
                 if not chunk:
                     break
                 await websocket.send(chunk)
+                await asyncio.sleep(chunk_ms / 1000)
     except wave.Error as exc:
         raise TranscriptionError(f"Could not read WAV audio for Deepgram: {exc}") from exc
 
