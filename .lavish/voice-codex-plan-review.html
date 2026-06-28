@@ -1,0 +1,554 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Voice Codex Plan Review</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #172026;
+      --muted: #5a6670;
+      --line: #d8dee4;
+      --soft: #f5f7f9;
+      --panel: #ffffff;
+      --accent: #0f766e;
+      --accent-soft: #dff5f1;
+      --warn: #a15c00;
+      --warn-soft: #fff4dd;
+      --risk: #a33131;
+      --risk-soft: #ffeded;
+      --ok: #207246;
+      --ok-soft: #e9f7ee;
+      --code: #27313a;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #eef2f5;
+      color: var(--ink);
+      font: 15px/1.55 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    main {
+      width: min(1180px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 32px 0 48px;
+    }
+
+    header {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 26px;
+      box-shadow: 0 12px 32px rgba(23, 32, 38, 0.08);
+    }
+
+    h1, h2, h3, p {
+      margin-top: 0;
+    }
+
+    h1 {
+      font-size: clamp(28px, 4vw, 46px);
+      line-height: 1.05;
+      letter-spacing: 0;
+      margin-bottom: 12px;
+    }
+
+    h2 {
+      font-size: 22px;
+      line-height: 1.2;
+      margin-bottom: 14px;
+    }
+
+    h3 {
+      font-size: 16px;
+      line-height: 1.25;
+      margin-bottom: 8px;
+    }
+
+    p {
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+
+    .kicker {
+      color: var(--accent);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-size: 12px;
+      margin-bottom: 10px;
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.65fr);
+      gap: 18px;
+      margin-top: 18px;
+    }
+
+    .hero-callout {
+      background: var(--accent-soft);
+      border: 1px solid #a8ddd4;
+      border-radius: 8px;
+      padding: 18px;
+    }
+
+    .hero-callout strong {
+      color: #0c4f4a;
+      display: block;
+      font-size: 18px;
+      margin-bottom: 6px;
+    }
+
+    .meta-list {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .meta-list li {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      min-width: 0;
+      color: var(--muted);
+    }
+
+    .tag {
+      flex: 0 0 auto;
+      border-radius: 999px;
+      background: var(--soft);
+      border: 1px solid var(--line);
+      color: var(--ink);
+      font-size: 12px;
+      font-weight: 700;
+      padding: 2px 8px;
+      white-space: nowrap;
+    }
+
+    section {
+      margin-top: 20px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 22px;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .tile {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+      background: #fbfcfd;
+      min-width: 0;
+    }
+
+    .tile.ok {
+      background: var(--ok-soft);
+      border-color: #b9dfc6;
+    }
+
+    .tile.warn {
+      background: var(--warn-soft);
+      border-color: #f0d39a;
+    }
+
+    .tile.risk {
+      background: var(--risk-soft);
+      border-color: #f0bcbc;
+    }
+
+    .tile p:last-child,
+    section p:last-child {
+      margin-bottom: 0;
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .step {
+      position: relative;
+      min-width: 0;
+      background: var(--soft);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+    }
+
+    .step::after {
+      content: "";
+      position: absolute;
+      top: 28px;
+      right: -10px;
+      width: 10px;
+      border-top: 2px solid var(--line);
+    }
+
+    .step:last-child::after {
+      display: none;
+    }
+
+    .num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #ffffff;
+      font-weight: 800;
+      margin-bottom: 10px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      margin-top: 10px;
+    }
+
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 11px 10px;
+      text-align: left;
+      vertical-align: top;
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    th {
+      color: var(--ink);
+      background: var(--soft);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    code {
+      color: var(--code);
+      background: #e8edf1;
+      border-radius: 5px;
+      padding: 1px 5px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.92em;
+    }
+
+    .checklist {
+      display: grid;
+      gap: 9px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .checklist li {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .box {
+      width: 18px;
+      height: 18px;
+      flex: 0 0 18px;
+      margin-top: 2px;
+      border-radius: 4px;
+      background: var(--accent);
+      color: #ffffff;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .decision {
+      border-left: 5px solid var(--accent);
+      background: #f7fbfa;
+      padding: 16px 18px;
+      border-radius: 8px;
+      margin-top: 12px;
+    }
+
+    .small {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    @media (max-width: 920px) {
+      .summary,
+      .grid-3,
+      .grid-2,
+      .flow {
+        grid-template-columns: 1fr;
+      }
+
+      .step::after {
+        display: none;
+      }
+    }
+
+    @media (max-width: 560px) {
+      main {
+        width: min(100% - 20px, 1180px);
+        padding-top: 16px;
+      }
+
+      header,
+      section {
+        padding: 16px;
+      }
+
+      table {
+        display: block;
+        overflow-x: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div class="kicker">Plan review</div>
+      <h1>Voice-to-Codex should start as a one-shot proof, not a daemon.</h1>
+      <p>
+        The requirements plan is directionally strong. The main adjustment is sequencing:
+        validate the fragile Linux integration points before adding hotkeys, systemd, silence
+        detection, or richer vocabulary tooling.
+      </p>
+      <div class="summary">
+        <div class="hero-callout">
+          <strong>First thing to do</strong>
+          Build a tiny <code>voice-codex-once</code> prototype plus a preflight check. It should record a short clip,
+          transcribe locally, copy the result, and attempt to paste into the focused Codex terminal.
+        </div>
+        <ul class="meta-list" aria-label="Key recommendation metadata">
+          <li><span class="tag">Why</span><span>It separates microphone, Whisper, clipboard, terminal paste, and desktop-session issues.</span></li>
+          <li><span class="tag">Default</span><span>Use <code>Ctrl+Alt+R</code> later; avoid <code>Ctrl+R</code> until conflicts are tested.</span></li>
+          <li><span class="tag">Scope</span><span>No daemon, no systemd, no Wayland polish, no silence detection in the first slice.</span></li>
+        </ul>
+      </div>
+    </header>
+
+    <section>
+      <h2>What Problem Exists</h2>
+      <div class="grid-3">
+        <div class="tile warn">
+          <h3>Too many moving parts</h3>
+          <p>The full flow crosses audio capture, local ML inference, global hotkeys, clipboard/input injection, terminal behavior, and desktop permissions.</p>
+        </div>
+        <div class="tile risk">
+          <h3>Linux session risk</h3>
+          <p>X11 and Wayland behave differently. On Wayland, keyboard injection can fail or require <code>ydotoold</code> and <code>/dev/uinput</code> permissions.</p>
+        </div>
+        <div class="tile warn">
+          <h3>Shortcut conflict</h3>
+          <p><code>Ctrl+R</code> is shell reverse search. A global listener may collide with normal terminal usage, so it should not be the first default.</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Recommended First Milestone</h2>
+      <p>
+        Treat the first milestone as a technical spike with a crisp success condition:
+        spoken text appears in the active Codex CLI prompt, and the user still presses Enter manually.
+      </p>
+      <div class="flow" aria-label="First milestone flow">
+        <div class="step">
+          <span class="num">1</span>
+          <h3>Preflight</h3>
+          <p>Detect <code>XDG_SESSION_TYPE</code>, microphone devices, <code>ffmpeg</code>, clipboard tool, and paste backend.</p>
+        </div>
+        <div class="step">
+          <span class="num">2</span>
+          <h3>Record</h3>
+          <p>Capture a fixed 5-10 second WAV file through <code>sounddevice</code>.</p>
+        </div>
+        <div class="step">
+          <span class="num">3</span>
+          <h3>Transcribe</h3>
+          <p>Run <code>faster-whisper</code> locally with <code>base.en</code>, CPU, and <code>int8</code>.</p>
+        </div>
+        <div class="step">
+          <span class="num">4</span>
+          <h3>Insert</h3>
+          <p>Copy to clipboard and paste with <code>xdotool</code> on X11, fallback to clipboard-only.</p>
+        </div>
+        <div class="step">
+          <span class="num">5</span>
+          <h3>Measure</h3>
+          <p>Log latency, insertion success, and transcription quality before designing the daemon.</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Phase Order I Would Use</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Phase</th>
+            <th>Build</th>
+            <th>Success Condition</th>
+            <th>Do Not Include Yet</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>0</td>
+            <td>Preflight command: session, mic, dependencies, insertion backend.</td>
+            <td>We know whether this machine is X11, Wayland, or clipboard-only before implementation expands.</td>
+            <td>Model loading, hotkeys, daemon.</td>
+          </tr>
+          <tr>
+            <td>1</td>
+            <td><code>voice-codex-once</code>: fixed-duration record, transcribe, paste/copy.</td>
+            <td>One spoken prompt lands in Codex CLI without manual copy/paste.</td>
+            <td>Systemd, global shortcut, silence detection.</td>
+          </tr>
+          <tr>
+            <td>2</td>
+            <td>Vocabulary file and deterministic corrections.</td>
+            <td>Names like <code>Dawood</code>, <code>Codex</code>, <code>FastAPI</code>, and <code>JWT</code> survive common mishearings.</td>
+            <td>Fuzzy correction unless the deterministic map is insufficient.</td>
+          </tr>
+          <tr>
+            <td>3</td>
+            <td>Daemon with toggle hotkey and persistent model.</td>
+            <td><code>Ctrl+Alt+R</code> toggles recording and inserts text while Codex is focused.</td>
+            <td>Auto-submit by default.</td>
+          </tr>
+          <tr>
+            <td>4</td>
+            <td>Wayland support, robust fallbacks, systemd install, CLI controls.</td>
+            <td>User can start, stop, diagnose, and recover from insertion failure.</td>
+            <td>GUI or broad desktop-environment perfection.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Key Design Decisions</h2>
+      <div class="grid-2">
+        <div class="tile ok">
+          <h3>Agree with faster-whisper first</h3>
+          <p>It keeps the first implementation Python-native, local, and testable. Only revisit <code>whisper.cpp</code> if packaging or performance becomes the bottleneck.</p>
+        </div>
+        <div class="tile ok">
+          <h3>Agree with manual Enter</h3>
+          <p>Insertion without auto-submit protects the Codex workflow from bad transcripts, accidental recordings, and vocabulary correction mistakes.</p>
+        </div>
+        <div class="tile warn">
+          <h3>Add preflight before daemon</h3>
+          <p>The plan has implementation phases, but a phase-zero diagnostic will save time because Linux input injection is the highest uncertainty.</p>
+        </div>
+        <div class="tile warn">
+          <h3>Delay fuzzy matching</h3>
+          <p>Fuzzy matching can silently damage code terms. Start with exact corrections, then add conservative fuzzy rules only after observing real mistakes.</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Implementation Shape</h2>
+      <div class="decision">
+        <h3>Recommended first PR</h3>
+        <p>
+          Create the Python package skeleton, config defaults, a preflight command, and
+          <code>voice-codex-once</code>. Keep the code modular enough that recorder,
+          transcriber, vocabulary, and inserter can be reused by the later daemon.
+        </p>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Module</th>
+            <th>First Responsibility</th>
+            <th>Reason It Matters</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>recorder.py</code></td>
+            <td>Record fixed-duration mono WAV at 16 kHz.</td>
+            <td>Confirms microphone and audio stack before adding toggle behavior.</td>
+          </tr>
+          <tr>
+            <td><code>transcriber.py</code></td>
+            <td>Load <code>faster-whisper</code> and return plain text plus timing.</td>
+            <td>Measures whether CPU inference feels usable on this machine.</td>
+          </tr>
+          <tr>
+            <td><code>inserter.py</code></td>
+            <td>Clipboard + X11 paste, with clipboard-only fallback.</td>
+            <td>Proves the Codex terminal can receive text without manual copy/paste.</td>
+          </tr>
+          <tr>
+            <td><code>cli.py</code></td>
+            <td>Expose <code>preflight</code>, <code>once</code>, and later control commands.</td>
+            <td>Keeps diagnostics user-accessible before daemon logs exist.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Understanding Checklist</h2>
+      <ul class="checklist">
+        <li><span class="box">✓</span><span><strong>Problem and root cause:</strong> the risk is integration complexity, not the basic idea.</span></li>
+        <li><span class="box">✓</span><span><strong>Relevant flow:</strong> hotkey → record → transcribe → correct → insert into Codex CLI.</span></li>
+        <li><span class="box">✓</span><span><strong>Solution decision:</strong> first prove <code>voice-codex-once</code>, then daemonize after the flow works.</span></li>
+        <li><span class="box">✓</span><span><strong>Edge cases:</strong> Wayland restrictions, shell shortcut conflicts, slow first transcription, bad custom vocabulary corrections.</span></li>
+        <li><span class="box">✓</span><span><strong>Verification:</strong> success means a spoken prompt lands in the focused Codex CLI input, with manual Enter still required.</span></li>
+        <li><span class="box">✓</span><span><strong>Broader impact:</strong> this creates a reusable foundation for daemon, vocabulary, systemd, and silence detection later.</span></li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Bottom Line</h2>
+      <p>
+        Move forward, but narrow the first implementation. The first thing I would do is create
+        a phase-zero diagnostic and a <code>voice-codex-once</code> command. Once that works on this
+        machine, the daemon is mostly orchestration around proven modules instead of a large
+        unknown system.
+      </p>
+      <p class="small">
+        Design source: self-contained local HTML/CSS. The repo has no app design system, and the
+        Lavish CLI/CDN workflow could not be safely executed in this sandbox.
+      </p>
+    </section>
+  </main>
+</body>
+</html>
