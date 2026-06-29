@@ -1,0 +1,16 @@
+[Unit]
+Description=ydotoold virtual keyboard daemon
+After=systemd-udev-settle.service
+Wants=systemd-udev-settle.service
+
+[Service]
+Type=simple
+ExecStartPre=/bin/rm -f /tmp/.ydotool_socket
+ExecStart=/usr/bin/ydotoold
+ExecStartPost=/bin/chgrp tk-lpt-0427 /tmp/.ydotool_socket
+ExecStartPost=/bin/chmod 0660 /tmp/.ydotool_socket
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

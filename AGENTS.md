@@ -18,19 +18,20 @@ Auto-submit must stay disabled by default.
 
 ## Current Phase
 
-The active branch for the third implementation slice is `phase-3`.
+The active branch for the fourth implementation slice is `phase-4`.
 
-Phase 3 adds vocabulary and deterministic correction support after Deepgram transcription. Do not add fuzzy matching, systemd installation, GUI, auto-submit, or silence detection yet.
+Phase 4 adds user-level background service management and best-effort active cursor paste. Do not add GUI, auto-submit, fuzzy matching, or silence detection yet.
 
-Phase 3 should prove:
+Phase 4 should prove:
 
-- Vocabulary and correction files can be loaded safely.
-- Explicit correction rules are applied after Deepgram transcription.
-- Corrected text is what gets printed, copied, or inserted.
-- One-shot and daemon flows share the same correction behavior.
-- Missing vocabulary files do not break the app.
+- The user can install `voice-codexd.service` as a `systemd --user` service.
+- The user can start, stop, restart, inspect status, and view logs from CLI commands.
+- The daemon keeps running in the background after service start.
+- Desktop notifications show recording, transcription, copied/pasted, and error states when `notify-send` is available.
+- On X11, active paste uses `xdotool` where available.
+- On Wayland, active paste uses `ydotool` where available and falls back to clipboard-only otherwise.
 
-## Phase 3 Scope
+## Phase 4 Scope
 
 Keep the existing commands:
 
@@ -38,6 +39,12 @@ Keep the existing commands:
 - `voice-codex-once`
 - `voice-codex-daemon`
 - `voice-codex daemon`
+- `voice-codex service install`
+- `voice-codex service start`
+- `voice-codex service stop`
+- `voice-codex service restart`
+- `voice-codex service status`
+- `voice-codex service logs`
 
 Add support for:
 
@@ -58,7 +65,7 @@ Add support for:
 
 `voice-codex-daemon` should:
 
-- Listen for `Ctrl+Alt+R` by default.
+- Listen for `F9` by default.
 - Start recording on the first hotkey press.
 - Stop recording on the second hotkey press.
 - Transcribe through Deepgram Flux using `/v2/listen`.
@@ -73,6 +80,13 @@ Vocabulary correction should:
 - Avoid fuzzy matching in Phase 3.
 - Treat missing files as empty configuration.
 
+Background service support should:
+
+- Install `~/.config/systemd/user/voice-codexd.service`.
+- Use the current Python executable and project working directory at install time.
+- Use `systemctl --user` for start/stop/restart/status.
+- Use `journalctl --user -u voice-codexd.service` for logs.
+
 ## Recommended Defaults
 
 - Transcription engine: `deepgram-flux`
@@ -84,13 +98,16 @@ Vocabulary correction should:
 - Daemon recording mode: manual hotkey toggle
 - Maximum daemon recording duration: `45` seconds
 - First insertion mode: clipboard plus X11 paste where available
-- Hotkey default: `Ctrl+Alt+R`, not `Ctrl+R`
+- Hotkey default: `F9`, not `Ctrl+R`
 - Vocabulary file: `~/.config/voice-codex/vocabulary.txt`
 - Corrections file: `~/.config/voice-codex/corrections.toml`
+- User service file: `~/.config/systemd/user/voice-codexd.service`
+- Wayland active paste backend: `ydotool` plus `ydotoold`
+- Recording indicator backend: `notify-send`
 
 ## Implementation Guidance
 
-Keep modules small and reusable so Phase 2 can daemonize the same core behavior.
+Keep modules small and reusable so daemon, service, and one-shot flows share the same core behavior.
 
 Suggested package modules:
 
@@ -101,6 +118,7 @@ Suggested package modules:
 - `voice_codex/hotkeys.py`
 - `voice_codex/daemon.py`
 - `voice_codex/vocabulary.py`
+- `voice_codex/service.py`
 - `voice_codex/preflight.py`
 - `voice_codex/cli.py`
 
@@ -127,7 +145,7 @@ On X11:
 On Wayland:
 
 - Direct insertion may require `ydotool` and `ydotoold`.
-- Clipboard-only fallback is acceptable for Phase 1.
+- Clipboard-only fallback is acceptable when direct insertion is unavailable.
 
 If direct insertion fails, preserve the transcription by copying it to the clipboard and clearly reporting that the user should paste manually.
 
@@ -154,6 +172,14 @@ For Phase 3, also verify:
 - Correction rules apply in `voice-codex-once`.
 - Correction rules apply in `voice-codex-daemon`.
 - `--no-vocabulary` disables correction behavior.
+
+For Phase 4, also verify:
+
+- `voice-codex service install` writes the user service file.
+- `voice-codex service start` starts the background daemon.
+- `voice-codex service status` shows the daemon state.
+- `voice-codex service logs` shows daemon logs.
+- On Wayland, installing/configuring `ydotool` enables paste into the focused cursor; without it, clipboard-only fallback remains expected.
 
 Add automated tests for deterministic code where practical, especially config parsing, vocabulary correction, and insertion command selection. Do not block the first prototype on full hardware-dependent test automation.
 

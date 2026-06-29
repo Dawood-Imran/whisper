@@ -1,12 +1,12 @@
 # Testing Voice Codex Phase 1
 
-This guide verifies the Phase 1 one-shot prototype and the Phase 2 hotkey daemon:
+This guide verifies the one-shot command, hotkey daemon, vocabulary corrections, and background service:
 
 ```text
 preflight -> recording -> Deepgram Flux transcription -> vocabulary corrections -> clipboard/direct insertion
 ```
 
-Phase 3 includes deterministic vocabulary corrections. It does not include fuzzy matching, systemd installation, silence detection, GUI, or auto-submit.
+Phase 4 includes deterministic vocabulary corrections, user-level service management, and best-effort active cursor paste. It does not include fuzzy matching, silence detection, GUI, or auto-submit.
 
 ## Model Used
 
@@ -138,9 +138,10 @@ voice-codex-once --duration 5
 Expected behavior:
 
 1. Text is copied to the clipboard.
-2. The command tries to paste into the active window using `Ctrl+Shift+V`.
-3. You manually review the inserted prompt.
-4. You manually press Enter.
+2. On X11, the command tries to paste into the active window using `Ctrl+Shift+V`.
+3. On Wayland, the command types the transcript into the active window using `ydotool`.
+4. You manually review the inserted prompt.
+5. You manually press Enter.
 
 If your terminal uses `Ctrl+V` instead:
 
@@ -148,7 +149,7 @@ If your terminal uses `Ctrl+V` instead:
 voice-codex-once --duration 5 --paste-shortcut ctrl+v
 ```
 
-On Wayland, Phase 1 may be clipboard-only. If direct paste is unavailable, manually paste the copied transcript into Codex CLI.
+On Wayland, active insertion requires `ydotool` and `ydotoold`. If direct insertion is unavailable, manually paste the copied transcript into Codex CLI.
 
 ## 8. Optional Deepgram Settings
 
@@ -242,18 +243,24 @@ python -m voice_codex daemon
 Default hotkey:
 
 ```text
-Ctrl+Alt+R
+F9
 ```
 
 Expected behavior:
 
 1. The daemon starts and logs the configured hotkey.
-2. Pressing `Ctrl+Alt+R` starts recording.
-3. Pressing `Ctrl+Alt+R` again stops recording.
+2. Pressing `F9` starts recording.
+3. Pressing `F9` again stops recording.
 4. The daemon sends audio to Deepgram Flux.
 5. The transcript is copied or inserted.
 6. The daemon returns to idle.
 7. You manually review and press Enter in Codex.
+
+Desktop notifications should appear for recording start, recording stop, transcribing, copied/inserted, and errors. Disable them with:
+
+```bash
+voice-codex-daemon --no-notify
+```
 
 Use a custom hotkey if needed:
 
@@ -269,7 +276,77 @@ voice-codex-daemon --keep-audio --audio-dir ./recordings
 
 On Wayland, the desktop session may block global keyboard listeners. If the daemon starts but never receives the hotkey, keep using `voice-codex-once` while we add a desktop-specific trigger path in a later phase.
 
-## 11. Common Failure Modes
+## 11. Test The Phase 4 Background Service
+
+Install and start the user service:
+
+```bash
+voice-codex service install --enable --start
+```
+
+Make sure the service can read the API key:
+
+```bash
+mkdir -p ~/.config/voice-codex
+printf 'DEEPGRAM_API_KEY="your_deepgram_api_key"\n' > ~/.config/voice-codex/env
+```
+
+Replace `your_deepgram_api_key` with the real key. A placeholder value will cause Deepgram `HTTP 401`.
+
+Check status:
+
+```bash
+voice-codex service status
+```
+
+View logs:
+
+```bash
+voice-codex service logs --lines 120
+```
+
+Restart after changing code or config:
+
+```bash
+voice-codex service restart
+```
+
+Stop the background daemon:
+
+```bash
+voice-codex service stop
+```
+
+On Wayland, install active paste support:
+
+```bash
+sudo apt install ydotool ydotoold
+```
+
+Depending on your distribution, `ydotoold` must also be running and your user may need access to `/dev/uinput`. `ydotool` by itself is only the client; direct paste will not work until a ydotool socket exists at `YDOTOOL_SOCKET`, `/tmp/.ydotool_socket`, or `/run/user/<uid>/.ydotool_socket`.
+
+On Ubuntu, the `ydotoold` package may install `/usr/bin/ydotoold` without installing a systemd unit. In that case, install the project-provided unit:
+
+```bash
+sudo cp "/home/tk-lpt-0427/Dawood Personal/whisper/systemd/ydotoold.service" /etc/systemd/system/ydotoold.service
+sudo chmod 0644 /etc/systemd/system/ydotoold.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now ydotoold.service
+```
+
+Run preflight after installing and starting `ydotoold`:
+
+```bash
+voice-codex-preflight
+```
+
+Expected insertion mode with `ydotool` and a running `ydotoold` socket:
+
+```text
+wayland-ydotool-type
+```
+
+## 12. Common Failure Modes
 
 ### Missing Python Packages
 
@@ -309,6 +386,21 @@ X11:
 sudo apt install xclip xdotool
 ```
 
+### Service Does Not Start
+
+Check status and logs:
+
+```bash
+voice-codex service status
+voice-codex service logs --lines 120
+```
+
+If the service cannot find your API key, make sure it is available from the service working directory through `.env` or exported into the user service environment.
+
+### Wayland Does Not Paste Into Cursor
+
+If preflight shows `clipboard-only`, install and configure `ydotool`. Clipboard copy still works without active paste.
+
 ### No Microphone Devices
 
 Check system audio settings and run:
@@ -342,7 +434,7 @@ If preflight reports a corrections parse error, check that the file has this sha
 "wrong phrase" = "CorrectPhrase"
 ```
 
-## 12. Developer Checks
+## 13. Developer Checks
 
 Run syntax and unit checks:
 
@@ -350,6 +442,7 @@ Run syntax and unit checks:
 python -m compileall voice_codex tests
 python -m unittest discover -s tests
 python -m voice_codex daemon --help
+python -m voice_codex service --help
 ```
 
 If development dependencies are installed:
@@ -369,4 +462,5 @@ Phase 1 is working when:
 - Deepgram Flux produces readable transcript text.
 - Explicit vocabulary corrections are applied before copy/insert.
 - The transcript is copied to the clipboard or inserted into the focused terminal.
+- `voice-codex service start` can run the daemon in the background.
 - The command does not auto-submit to Codex.

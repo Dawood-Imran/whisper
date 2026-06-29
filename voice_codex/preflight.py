@@ -10,6 +10,7 @@ from typing import Iterable
 
 from voice_codex.config import TRANSCRIPTION_DEFAULTS, VOCABULARY_DEFAULTS
 from voice_codex.hotkeys import session_warns_for_hotkeys
+from voice_codex.inserter import ydotool_ready
 from voice_codex.vocabulary import VocabularyError, load_corrections, load_vocabulary_terms
 
 
@@ -68,6 +69,8 @@ SYSTEM_TOOLS = (
     "wl-paste",
     "xdotool",
     "ydotool",
+    "ydotoold",
+    "notify-send",
 )
 
 PYTHON_PACKAGES = (
@@ -186,6 +189,12 @@ def choose_insertion_mode(
     if session_type == "x11" and clipboard_backend and "xdotool" in available:
         return "x11-paste"
 
+    if session_type == "wayland" and clipboard_backend and ydotool_ready():
+        return "wayland-ydotool-type"
+
+    if session_type == "unknown" and clipboard_backend and ydotool_ready():
+        return "ydotool-type"
+
     if clipboard_backend:
         return "clipboard-only"
 
@@ -230,7 +239,7 @@ def run_preflight() -> PreflightReport:
         )
 
     if not package_map.get("pynput", False):
-        failures.append("Python package 'pynput' is missing; the Phase 2 hotkey daemon cannot run.")
+        failures.append("Python package 'pynput' is missing; the hotkey daemon cannot run.")
 
     if not api_key_configured:
         failures.append(
@@ -271,6 +280,11 @@ def run_preflight() -> PreflightReport:
     if session_type == "wayland" and not tool_map.get("wl-copy", False):
         warnings.append(
             "Wayland session detected, but 'wl-copy' is missing; install wl-clipboard for clipboard support."
+        )
+
+    if session_type == "wayland" and not ydotool_ready():
+        warnings.append(
+            "Wayland active paste needs 'ydotool' and a running 'ydotoold' socket; otherwise Voice Codex will copy only."
         )
 
     return PreflightReport(

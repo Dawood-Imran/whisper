@@ -17,6 +17,7 @@ from voice_codex.config import (
 )
 from voice_codex.hotkeys import PynputHotkeyListener, session_warns_for_hotkeys
 from voice_codex.inserter import InsertionError, insert_text
+from voice_codex.notify import notify_user
 from voice_codex.recorder import RecordingError, ToggleWavRecorder
 from voice_codex.transcriber import TranscriptionError, transcribe_audio
 from voice_codex.vocabulary import VocabularyConfig, VocabularyError, apply_vocabulary
@@ -30,6 +31,7 @@ class DaemonOptions:
     hotkey: str = DAEMON_DEFAULTS.hotkey
     max_duration_seconds: float = DAEMON_DEFAULTS.max_duration_seconds
     keep_audio: bool = DAEMON_DEFAULTS.keep_audio
+    notifications_enabled: bool = DAEMON_DEFAULTS.notifications_enabled
     sample_rate: int = RECORDING_DEFAULTS.sample_rate
     channels: int = RECORDING_DEFAULTS.channels
     input_device: int | str | None = None
@@ -70,6 +72,7 @@ class VoiceCodexDaemon:
 
         LOGGER.info("Voice Codex daemon started. Hotkey: %s", self.options.hotkey)
         LOGGER.info("Press the hotkey once to start recording, again to stop.")
+        self._notify("Voice Codex ready", f"Press {self.options.hotkey} to start recording.")
         listener = PynputHotkeyListener(self.options.hotkey, self.toggle_recording)
 
         try:
@@ -99,6 +102,7 @@ class VoiceCodexDaemon:
                 self.start_recording()
             except RecordingError as exc:
                 LOGGER.error("Could not start recording: %s", exc)
+                self._notify("Voice Codex error", str(exc), urgency="critical", timeout_ms=5000)
                 self._return_to_idle()
             return
 
@@ -136,6 +140,7 @@ class VoiceCodexDaemon:
             self._schedule_max_duration_locked()
 
         LOGGER.info("Recording started.")
+        self._notify("Recording started", f"Press {self.options.hotkey} again to stop.", urgency="normal")
 
     def stop_recording_and_process(self) -> None:
         with self._lock:
@@ -160,6 +165,7 @@ class VoiceCodexDaemon:
             result.duration_seconds,
             result.audio_path,
         )
+        self._notify("Recording stopped", "Transcribing with Deepgram.")
         if result.status_messages:
             LOGGER.warning("Recording status messages: %s", "; ".join(result.status_messages))
 
@@ -174,6 +180,7 @@ class VoiceCodexDaemon:
     def _process_recording(self, audio_path: Path) -> None:
         try:
             LOGGER.info("Processing recording with Deepgram Flux.")
+            self._notify("Transcribing", "Sending audio to Deepgram.")
             transcription = transcribe_audio(
                 audio_path,
                 model_name=self.options.model_name,
@@ -187,6 +194,7 @@ class VoiceCodexDaemon:
 
             if not transcription.text:
                 LOGGER.warning("Deepgram returned no transcript text.")
+                self._notify("No transcript", "Deepgram returned no text.", urgency="normal")
                 return
 
             vocabulary = apply_vocabulary(
@@ -215,14 +223,20 @@ class VoiceCodexDaemon:
                 paste_shortcut=self.options.paste_shortcut,
             )
             LOGGER.info(insertion.message)
+            if insertion.pasted:
+                self._notify("Transcript inserted", "Review the prompt before pressing Enter.")
+            else:
+                self._notify("Transcript copied", "Paste into Codex, then press Enter.")
             if insertion.insertion_mode == "clipboard-only":
                 LOGGER.info("Paste manually into Codex CLI, then press Enter when ready.")
             else:
                 LOGGER.info("Review the inserted Codex prompt, then press Enter when ready.")
         except (TranscriptionError, InsertionError, VocabularyError, ValueError) as exc:
             LOGGER.error("Could not process recording: %s", exc)
+            self._notify("Voice Codex error", str(exc), urgency="critical", timeout_ms=6000)
         except Exception:
             LOGGER.exception("Unexpected daemon processing error.")
+            self._notify("Voice Codex error", "Unexpected processing error.", urgency="critical", timeout_ms=6000)
         finally:
             if not self.options.keep_audio:
                 try:
@@ -238,6 +252,19 @@ class VoiceCodexDaemon:
             self._cleanup_temp_dir()
 
         LOGGER.info("Daemon ready.")
+
+    def _notify(
+        self,
+        summary: str,
+        body: str = "",
+        *,
+        urgency: str = "normal",
+        timeout_ms: int = 2500,
+    ) -> None:
+        if not self.options.notifications_enabled:
+            return
+
+        notify_user(summary, body, urgency=urgency, timeout_ms=timeout_ms)
 
     def _next_audio_path(self) -> Path:
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")

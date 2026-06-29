@@ -21,6 +21,7 @@ dependencies = [
 voice-codex = "voice_codex.cli:main"
 voice-codex-daemon = "voice_codex.cli:daemon_main"
 voice-codex-preflight = "voice_codex.cli:preflight_main"
+voice-codex-service = "voice_codex.cli:service_main"
 voice-codex-once = "voice_codex.cli:once_main"
 
 [project.optional-dependencies]

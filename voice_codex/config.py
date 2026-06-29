@@ -29,9 +29,10 @@ class InsertionDefaults:
 
 @dataclass(frozen=True)
 class DaemonDefaults:
-    hotkey: str = "<ctrl>+<alt>+r"
+    hotkey: str = "<f9>"
     max_duration_seconds: float = 45.0
     keep_audio: bool = False
+    notifications_enabled: bool = True
 
 
 @dataclass(frozen=True)

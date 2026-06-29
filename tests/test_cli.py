@@ -2,7 +2,12 @@ from __future__ import annotations
 
 import unittest
 
-from voice_codex.cli import _coerce_input_device, _daemon_options_from_args, build_daemon_parser
+from voice_codex.cli import (
+    _coerce_input_device,
+    _daemon_options_from_args,
+    build_daemon_parser,
+    build_service_parser,
+)
 
 
 class CliTests(unittest.TestCase):
@@ -29,6 +34,7 @@ class CliTests(unittest.TestCase):
                 "--language-hint",
                 "en",
                 "--no-vocabulary",
+                "--no-notify",
             ]
         )
 
@@ -40,6 +46,28 @@ class CliTests(unittest.TestCase):
         self.assertFalse(options.paste)
         self.assertEqual(options.language_hints, ("en",))
         self.assertFalse(options.vocabulary_enabled)
+        self.assertFalse(options.notifications_enabled)
+
+    def test_service_parser_install_command(self) -> None:
+        parser = build_service_parser("voice-codex-service")
+        args = parser.parse_args(
+            [
+                "install",
+                "--log-level",
+                "debug",
+                "--enable",
+                "--start",
+                "--",
+                "--hotkey",
+                "<ctrl>+<alt>+r",
+            ]
+        )
+
+        self.assertEqual(args.service_command, "install")
+        self.assertEqual(args.log_level, "debug")
+        self.assertTrue(args.enable)
+        self.assertTrue(args.start)
+        self.assertEqual(args.daemon_args, ["--", "--hotkey", "<ctrl>+<alt>+r"])
 
 
 if __name__ == "__main__":

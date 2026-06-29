@@ -6,23 +6,24 @@ The canonical agent instruction file is `AGENTS.md`. Use that file for detailed 
 
 ## Active Phase
 
-Branch: `phase-3`
+Branch: `phase-4`
 
-Phase 3 should prove vocabulary and correction support:
+Phase 4 should prove background service and active cursor paste support:
 
 1. Run a preflight check.
-2. Load vocabulary and correction files.
-3. Transcribe with Deepgram Flux using `DEEPGRAM_API_KEY`.
-4. Apply explicit deterministic corrections.
-5. Copy or insert the corrected result into the focused terminal.
-6. Keep manual review and manual Enter.
+2. Install the user systemd service.
+3. Start the daemon in the background.
+4. Use the hotkey while the cursor is focused in Codex CLI.
+5. Transcribe with Deepgram Flux using `DEEPGRAM_API_KEY`.
+6. Apply explicit deterministic corrections.
+7. Paste into the focused cursor where supported, otherwise copy to clipboard.
+8. Keep manual review and manual Enter.
 
 ## Deferred Until Later
 
-- User-level systemd service.
 - Silence detection.
 - Fuzzy vocabulary matching.
-- Wayland-specific polish beyond safe clipboard fallback.
+- Wayland-specific paste beyond `ydotool`.
 - GUI.
 - Auto-submit.
 
