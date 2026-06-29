@@ -1,8 +1,42 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import Mock, patch
 
-from voice_codex.transcriber import build_flux_url, parse_flux_message
+from voice_codex.transcriber import build_flux_url, parse_flux_message, transcribe_audio
+
+
+class FasterWhisperTranscriberTests(unittest.TestCase):
+    def test_transcribe_audio_uses_faster_whisper_defaults(self) -> None:
+        first_segment = Mock()
+        first_segment.text = " hello "
+        second_segment = Mock()
+        second_segment.text = "codex"
+        model = Mock()
+        model.transcribe.return_value = ([first_segment, second_segment], object())
+
+        with patch("voice_codex.transcriber.get_faster_whisper_model", return_value=model):
+            result = transcribe_audio(
+                "prompt.wav",  # type: ignore[arg-type]
+                engine="faster-whisper",
+                model_name="small.en",
+                beam_size=1,
+                language="en",
+                vad_filter=True,
+                condition_on_previous_text=False,
+            )
+
+        self.assertEqual(result.text, "hello codex")
+        self.assertEqual(result.engine, "faster-whisper")
+        self.assertEqual(result.model, "small.en")
+        self.assertEqual(result.event_count, 2)
+        model.transcribe.assert_called_once_with(
+            "prompt.wav",
+            beam_size=1,
+            language="en",
+            vad_filter=True,
+            condition_on_previous_text=False,
+        )
 
 
 class DeepgramFluxTranscriberTests(unittest.TestCase):

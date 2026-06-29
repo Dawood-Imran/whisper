@@ -30,14 +30,13 @@ def notify_user(
         command.append(body)
 
     try:
-        subprocess.run(
+        subprocess.Popen(
             command,
-            check=True,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
-            timeout=2,
+            start_new_session=True,
         )
-    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+    except OSError:
         return False
 
     return True

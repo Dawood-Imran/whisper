@@ -19,6 +19,15 @@ MODIFIER_ALIASES = {
     "win": "<cmd>",
 }
 
+KEY_ALIASES = {
+    "space": "<space>",
+    "enter": "<enter>",
+    "return": "<enter>",
+    "esc": "<esc>",
+    "escape": "<esc>",
+    "tab": "<tab>",
+}
+
 
 def normalize_hotkey(hotkey: str) -> str:
     parts = [part.strip().lower() for part in hotkey.split("+") if part.strip()]
@@ -31,6 +40,8 @@ def normalize_hotkey(hotkey: str) -> str:
             normalized.append(part)
         elif part in MODIFIER_ALIASES:
             normalized.append(MODIFIER_ALIASES[part])
+        elif part in KEY_ALIASES:
+            normalized.append(KEY_ALIASES[part])
         else:
             normalized.append(part)
 

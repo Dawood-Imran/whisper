@@ -158,9 +158,58 @@ def build_once_parser(prog: str, *, add_help: bool = True) -> argparse.ArgumentP
         help="Keep the temporary WAV file and print its path.",
     )
     parser.add_argument(
+        "--engine",
+        choices=("faster-whisper", "deepgram-flux"),
+        default=TRANSCRIPTION_DEFAULTS.engine,
+        help=f"Transcription engine. Default: {TRANSCRIPTION_DEFAULTS.engine}",
+    )
+    parser.add_argument(
         "--model",
         default=TRANSCRIPTION_DEFAULTS.model,
-        help=f"Deepgram Flux model name. Default: {TRANSCRIPTION_DEFAULTS.model}",
+        help=f"Transcription model name. Default: {TRANSCRIPTION_DEFAULTS.model}",
+    )
+    parser.add_argument(
+        "--device",
+        default=TRANSCRIPTION_DEFAULTS.device,
+        help=f"faster-whisper device. Default: {TRANSCRIPTION_DEFAULTS.device}",
+    )
+    parser.add_argument(
+        "--compute-type",
+        default=TRANSCRIPTION_DEFAULTS.compute_type,
+        help=f"faster-whisper compute type. Default: {TRANSCRIPTION_DEFAULTS.compute_type}",
+    )
+    parser.add_argument(
+        "--cpu-threads",
+        type=int,
+        default=TRANSCRIPTION_DEFAULTS.cpu_threads,
+        help=(
+            "CPU threads for faster-whisper. "
+            f"Default: {TRANSCRIPTION_DEFAULTS.cpu_threads} (all cores)"
+        ),
+    )
+    parser.add_argument(
+        "--beam-size",
+        type=int,
+        default=TRANSCRIPTION_DEFAULTS.beam_size,
+        help=f"Beam size for faster-whisper. Default: {TRANSCRIPTION_DEFAULTS.beam_size}",
+    )
+    parser.add_argument(
+        "--language",
+        default=TRANSCRIPTION_DEFAULTS.language,
+        help=f"Language for faster-whisper. Default: {TRANSCRIPTION_DEFAULTS.language}",
+    )
+    parser.add_argument(
+        "--no-vad-filter",
+        action="store_false",
+        dest="vad_filter",
+        default=TRANSCRIPTION_DEFAULTS.vad_filter,
+        help="Disable faster-whisper VAD silence filtering.",
+    )
+    parser.add_argument(
+        "--condition-on-previous-text",
+        action="store_true",
+        default=TRANSCRIPTION_DEFAULTS.condition_on_previous_text,
+        help="Allow faster-whisper to condition each segment on previous text.",
     )
     parser.add_argument(
         "--endpoint",
@@ -262,9 +311,58 @@ def build_daemon_parser(prog: str, *, add_help: bool = True) -> argparse.Argumen
         help="Directory for kept daemon WAV files. Defaults to the current directory.",
     )
     parser.add_argument(
+        "--engine",
+        choices=("faster-whisper", "deepgram-flux"),
+        default=TRANSCRIPTION_DEFAULTS.engine,
+        help=f"Transcription engine. Default: {TRANSCRIPTION_DEFAULTS.engine}",
+    )
+    parser.add_argument(
         "--model",
         default=TRANSCRIPTION_DEFAULTS.model,
-        help=f"Deepgram Flux model name. Default: {TRANSCRIPTION_DEFAULTS.model}",
+        help=f"Transcription model name. Default: {TRANSCRIPTION_DEFAULTS.model}",
+    )
+    parser.add_argument(
+        "--device",
+        default=TRANSCRIPTION_DEFAULTS.device,
+        help=f"faster-whisper device. Default: {TRANSCRIPTION_DEFAULTS.device}",
+    )
+    parser.add_argument(
+        "--compute-type",
+        default=TRANSCRIPTION_DEFAULTS.compute_type,
+        help=f"faster-whisper compute type. Default: {TRANSCRIPTION_DEFAULTS.compute_type}",
+    )
+    parser.add_argument(
+        "--cpu-threads",
+        type=int,
+        default=TRANSCRIPTION_DEFAULTS.cpu_threads,
+        help=(
+            "CPU threads for faster-whisper. "
+            f"Default: {TRANSCRIPTION_DEFAULTS.cpu_threads} (all cores)"
+        ),
+    )
+    parser.add_argument(
+        "--beam-size",
+        type=int,
+        default=TRANSCRIPTION_DEFAULTS.beam_size,
+        help=f"Beam size for faster-whisper. Default: {TRANSCRIPTION_DEFAULTS.beam_size}",
+    )
+    parser.add_argument(
+        "--language",
+        default=TRANSCRIPTION_DEFAULTS.language,
+        help=f"Language for faster-whisper. Default: {TRANSCRIPTION_DEFAULTS.language}",
+    )
+    parser.add_argument(
+        "--no-vad-filter",
+        action="store_false",
+        dest="vad_filter",
+        default=TRANSCRIPTION_DEFAULTS.vad_filter,
+        help="Disable faster-whisper VAD silence filtering.",
+    )
+    parser.add_argument(
+        "--condition-on-previous-text",
+        action="store_true",
+        default=TRANSCRIPTION_DEFAULTS.condition_on_previous_text,
+        help="Allow faster-whisper to condition each segment on previous text.",
     )
     parser.add_argument(
         "--endpoint",
@@ -482,14 +580,10 @@ def run_once(args: argparse.Namespace) -> int:
         )
         print(f"Recorded audio: {audio_path}", flush=True)
 
-        print(
-            "Transcribing with Deepgram Flux "
-            f"model={args.model} endpoint={args.endpoint} "
-            f"chunk_ms={args.chunk_ms}...",
-            flush=True,
-        )
+        print(_transcription_start_message(args), flush=True)
         transcription = transcribe_audio(
             audio_path,
+            engine=args.engine,
             model_name=args.model,
             sample_rate=args.sample_rate,
             api_key_env=args.api_key_env,
@@ -497,6 +591,13 @@ def run_once(args: argparse.Namespace) -> int:
             chunk_ms=args.chunk_ms,
             language_hints=tuple(args.language_hint),
             close_timeout_seconds=args.close_timeout,
+            device=args.device,
+            compute_type=args.compute_type,
+            cpu_threads=args.cpu_threads,
+            beam_size=args.beam_size,
+            language=args.language,
+            vad_filter=args.vad_filter,
+            condition_on_previous_text=args.condition_on_previous_text,
         )
 
         if not transcription.text:
@@ -511,7 +612,7 @@ def run_once(args: argparse.Namespace) -> int:
         print(
             "Transcription complete: "
             f"{len(vocabulary.text)} chars, "
-            f"{transcription.event_count} Deepgram events, "
+            f"{transcription.event_count} {_transcription_count_label(transcription.engine)}, "
             f"{transcription.elapsed_seconds:.2f}s."
         )
         if vocabulary.correction_count:
@@ -570,7 +671,15 @@ def _daemon_options_from_args(args: argparse.Namespace) -> DaemonOptions:
         sample_rate=args.sample_rate,
         channels=args.channels,
         input_device=_coerce_input_device(args.input_device),
+        engine=args.engine,
         model_name=args.model,
+        device=args.device,
+        compute_type=args.compute_type,
+        cpu_threads=args.cpu_threads,
+        beam_size=args.beam_size,
+        language=args.language,
+        vad_filter=args.vad_filter,
+        condition_on_previous_text=args.condition_on_previous_text,
         endpoint=args.endpoint,
         api_key_env=args.api_key_env,
         chunk_ms=args.chunk_ms,
@@ -590,6 +699,25 @@ def _configure_logging(level: str) -> None:
         level=getattr(logging, level.upper()),
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
+
+
+def _transcription_start_message(args: argparse.Namespace) -> str:
+    if args.engine == "faster-whisper":
+        return (
+            "Transcribing with faster-whisper "
+            f"model={args.model} device={args.device} "
+            f"compute_type={args.compute_type} beam_size={args.beam_size}..."
+        )
+
+    return (
+        "Transcribing with Deepgram Flux "
+        f"model={args.model} endpoint={args.endpoint} "
+        f"chunk_ms={args.chunk_ms}..."
+    )
+
+
+def _transcription_count_label(engine: str) -> str:
+    return "segments" if engine == "faster-whisper" else "Deepgram events"
 
 
 def _vocabulary_config_from_args(args: argparse.Namespace) -> VocabularyConfig:

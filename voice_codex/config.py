@@ -13,8 +13,15 @@ class RecordingDefaults:
 
 @dataclass(frozen=True)
 class TranscriptionDefaults:
-    engine: str = "deepgram-flux"
-    model: str = "flux-general-en"
+    engine: str = "faster-whisper"
+    model: str = "small.en"
+    device: str = "cpu"
+    compute_type: str = "int8"
+    cpu_threads: int = 0
+    beam_size: int = 1
+    language: str = "en"
+    vad_filter: bool = True
+    condition_on_previous_text: bool = False
     endpoint: str = "wss://api.deepgram.com/v2/listen"
     api_key_env: str = "DEEPGRAM_API_KEY"
     chunk_ms: int = 80
@@ -29,7 +36,7 @@ class InsertionDefaults:
 
 @dataclass(frozen=True)
 class DaemonDefaults:
-    hotkey: str = "<f9>"
+    hotkey: str = "<ctrl>+<alt>+<space>"
     max_duration_seconds: float = 45.0
     keep_audio: bool = False
     notifications_enabled: bool = True

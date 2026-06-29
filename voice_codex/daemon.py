@@ -19,7 +19,7 @@ from voice_codex.hotkeys import PynputHotkeyListener, session_warns_for_hotkeys
 from voice_codex.inserter import InsertionError, insert_text
 from voice_codex.notify import notify_user
 from voice_codex.recorder import RecordingError, ToggleWavRecorder
-from voice_codex.transcriber import TranscriptionError, transcribe_audio
+from voice_codex.transcriber import TranscriptionError, transcribe_audio, warm_up_transcriber
 from voice_codex.vocabulary import VocabularyConfig, VocabularyError, apply_vocabulary
 
 
@@ -35,7 +35,15 @@ class DaemonOptions:
     sample_rate: int = RECORDING_DEFAULTS.sample_rate
     channels: int = RECORDING_DEFAULTS.channels
     input_device: int | str | None = None
+    engine: str = TRANSCRIPTION_DEFAULTS.engine
     model_name: str = TRANSCRIPTION_DEFAULTS.model
+    device: str = TRANSCRIPTION_DEFAULTS.device
+    compute_type: str = TRANSCRIPTION_DEFAULTS.compute_type
+    cpu_threads: int = TRANSCRIPTION_DEFAULTS.cpu_threads
+    beam_size: int = TRANSCRIPTION_DEFAULTS.beam_size
+    language: str | None = TRANSCRIPTION_DEFAULTS.language
+    vad_filter: bool = TRANSCRIPTION_DEFAULTS.vad_filter
+    condition_on_previous_text: bool = TRANSCRIPTION_DEFAULTS.condition_on_previous_text
     endpoint: str = TRANSCRIPTION_DEFAULTS.endpoint
     api_key_env: str = TRANSCRIPTION_DEFAULTS.api_key_env
     chunk_ms: int = TRANSCRIPTION_DEFAULTS.chunk_ms
@@ -72,6 +80,13 @@ class VoiceCodexDaemon:
 
         LOGGER.info("Voice Codex daemon started. Hotkey: %s", self.options.hotkey)
         LOGGER.info("Press the hotkey once to start recording, again to stop.")
+        try:
+            self._warm_up_transcription()
+        except (TranscriptionError, ValueError) as exc:
+            LOGGER.error("Could not initialize transcription engine: %s", exc)
+            self._notify("Voice Codex error", str(exc), urgency="critical", timeout_ms=6000)
+            return 1
+
         self._notify("Voice Codex ready", f"Press {self.options.hotkey} to start recording.")
         listener = PynputHotkeyListener(self.options.hotkey, self.toggle_recording)
 
@@ -165,7 +180,7 @@ class VoiceCodexDaemon:
             result.duration_seconds,
             result.audio_path,
         )
-        self._notify("Recording stopped", "Transcribing with Deepgram.")
+        self._notify("Recording stopped", f"Transcribing with {self.options.engine}.")
         if result.status_messages:
             LOGGER.warning("Recording status messages: %s", "; ".join(result.status_messages))
 
@@ -179,10 +194,11 @@ class VoiceCodexDaemon:
 
     def _process_recording(self, audio_path: Path) -> None:
         try:
-            LOGGER.info("Processing recording with Deepgram Flux.")
-            self._notify("Transcribing", "Sending audio to Deepgram.")
+            LOGGER.info("Processing recording with %s.", self.options.engine)
+            self._notify("Transcribing", self._transcription_notification_body())
             transcription = transcribe_audio(
                 audio_path,
+                engine=self.options.engine,
                 model_name=self.options.model_name,
                 sample_rate=self.options.sample_rate,
                 api_key_env=self.options.api_key_env,
@@ -190,11 +206,18 @@ class VoiceCodexDaemon:
                 chunk_ms=self.options.chunk_ms,
                 language_hints=self.options.language_hints,
                 close_timeout_seconds=self.options.close_timeout_seconds,
+                device=self.options.device,
+                compute_type=self.options.compute_type,
+                cpu_threads=self.options.cpu_threads,
+                beam_size=self.options.beam_size,
+                language=self.options.language,
+                vad_filter=self.options.vad_filter,
+                condition_on_previous_text=self.options.condition_on_previous_text,
             )
 
             if not transcription.text:
-                LOGGER.warning("Deepgram returned no transcript text.")
-                self._notify("No transcript", "Deepgram returned no text.", urgency="normal")
+                LOGGER.warning("%s returned no transcript text.", transcription.engine)
+                self._notify("No transcript", f"{transcription.engine} returned no text.", urgency="normal")
                 return
 
             vocabulary = apply_vocabulary(
@@ -212,9 +235,10 @@ class VoiceCodexDaemon:
                 )
 
             LOGGER.info(
-                "Transcribed %d chars from %d Deepgram events in %.2fs. Copying result.",
+                "Transcribed %d chars from %d %s in %.2fs. Copying result.",
                 len(vocabulary.text),
                 transcription.event_count,
+                self._transcription_count_label(transcription.engine),
                 transcription.elapsed_seconds,
             )
             insertion = insert_text(
@@ -252,6 +276,36 @@ class VoiceCodexDaemon:
             self._cleanup_temp_dir()
 
         LOGGER.info("Daemon ready.")
+
+    def _warm_up_transcription(self) -> None:
+        if self.options.engine != "faster-whisper":
+            return
+
+        LOGGER.info(
+            "Loading faster-whisper model %s on %s with compute_type=%s.",
+            self.options.model_name,
+            self.options.device,
+            self.options.compute_type,
+        )
+        self._notify("Loading speech model", f"{self.options.model_name} on {self.options.device}.")
+        warm_up_transcriber(
+            engine=self.options.engine,
+            model_name=self.options.model_name,
+            device=self.options.device,
+            compute_type=self.options.compute_type,
+            cpu_threads=self.options.cpu_threads,
+        )
+        LOGGER.info("faster-whisper model loaded.")
+
+    def _transcription_notification_body(self) -> str:
+        if self.options.engine == "faster-whisper":
+            return f"Running {self.options.model_name} locally."
+
+        return "Sending audio to Deepgram."
+
+    @staticmethod
+    def _transcription_count_label(engine: str) -> str:
+        return "segments" if engine == "faster-whisper" else "Deepgram events"
 
     def _notify(
         self,

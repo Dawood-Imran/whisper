@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import subprocess
 import unittest
 from unittest.mock import patch
 
@@ -14,18 +13,18 @@ class NotifyTests(unittest.TestCase):
 
     def test_notify_runs_notify_send(self) -> None:
         with patch("voice_codex.notify.shutil.which", return_value="/usr/bin/notify-send"), patch(
-            "voice_codex.notify.subprocess.run"
-        ) as run:
-            self.assertTrue(notify_user("Recording started", "Press F9 again."))
+            "voice_codex.notify.subprocess.Popen"
+        ) as popen:
+            self.assertTrue(notify_user("Recording started", "Press Ctrl+Alt+Space again."))
 
-        command = run.call_args.args[0]
+        command = popen.call_args.args[0]
         self.assertIn("notify-send", command)
         self.assertIn("Recording started", command)
 
     def test_notify_failure_returns_false(self) -> None:
         with patch("voice_codex.notify.shutil.which", return_value="/usr/bin/notify-send"), patch(
-            "voice_codex.notify.subprocess.run",
-            side_effect=subprocess.CalledProcessError(1, ["notify-send"]),
+            "voice_codex.notify.subprocess.Popen",
+            side_effect=OSError("notify failed"),
         ):
             self.assertFalse(notify_user("Hello"))
 
