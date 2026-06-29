@@ -77,6 +77,7 @@ PYTHON_PACKAGES = (
     "sounddevice",
     "numpy",
     "pynput",
+    "faster_whisper",
     "websockets",
     "dotenv",
 )
@@ -216,6 +217,7 @@ def run_preflight() -> PreflightReport:
     )
     clipboard_backend = choose_clipboard_backend(session_type, tools)
     insertion_mode = choose_insertion_mode(session_type, tools, clipboard_backend)
+    transcription_engine = TRANSCRIPTION_DEFAULTS.engine
     api_key_env = TRANSCRIPTION_DEFAULTS.api_key_env
     api_key_configured = bool(os.environ.get(api_key_env, "").strip())
     vocabulary_terms_count = 0
@@ -233,7 +235,12 @@ def run_preflight() -> PreflightReport:
     if not package_map.get("numpy", False):
         failures.append("Python package 'numpy' is missing; recording cannot run.")
 
-    if not package_map.get("websockets", False):
+    if transcription_engine == "faster-whisper" and not package_map.get("faster_whisper", False):
+        failures.append(
+            "Python package 'faster-whisper' is missing; local transcription cannot run."
+        )
+
+    if transcription_engine == "deepgram-flux" and not package_map.get("websockets", False):
         failures.append(
             "Python package 'websockets' is missing; Deepgram Flux transcription cannot run."
         )
@@ -241,7 +248,7 @@ def run_preflight() -> PreflightReport:
     if not package_map.get("pynput", False):
         failures.append("Python package 'pynput' is missing; the hotkey daemon cannot run.")
 
-    if not api_key_configured:
+    if transcription_engine == "deepgram-flux" and not api_key_configured:
         failures.append(
             f"Environment variable '{api_key_env}' is missing; Deepgram API transcription cannot run."
         )
@@ -284,7 +291,7 @@ def run_preflight() -> PreflightReport:
 
     if session_type == "wayland" and not ydotool_ready():
         warnings.append(
-            "Wayland active paste needs 'ydotool' and a running 'ydotoold' socket; otherwise Voice Codex will copy only."
+            "Wayland active insertion needs 'ydotool' and a running 'ydotoold' socket; otherwise Voice Codex will copy only."
         )
 
     return PreflightReport(
@@ -314,15 +321,34 @@ def format_report(report: PreflightReport) -> str:
         f"Platform: {report.platform}",
         f"Session: {report.session_type}",
         f"Transcription engine: {TRANSCRIPTION_DEFAULTS.engine}",
-        f"Deepgram model: {TRANSCRIPTION_DEFAULTS.model}",
-        f"Deepgram endpoint: {TRANSCRIPTION_DEFAULTS.endpoint}",
-        f"Deepgram API key ({report.api_key_env}): "
-        f"{'configured' if report.api_key_configured else 'missing'}",
+        f"Transcription model: {TRANSCRIPTION_DEFAULTS.model}",
+    ]
+
+    if TRANSCRIPTION_DEFAULTS.engine == "faster-whisper":
+        lines.extend(
+            [
+                f"Device: {TRANSCRIPTION_DEFAULTS.device}",
+                f"Compute type: {TRANSCRIPTION_DEFAULTS.compute_type}",
+                f"CPU threads: {TRANSCRIPTION_DEFAULTS.cpu_threads}",
+            ]
+        )
+    else:
+        lines.extend(
+            [
+                f"Deepgram endpoint: {TRANSCRIPTION_DEFAULTS.endpoint}",
+                f"Deepgram API key ({report.api_key_env}): "
+                f"{'configured' if report.api_key_configured else 'missing'}",
+            ]
+        )
+
+    lines.extend(
+        [
         f"Vocabulary terms: {report.vocabulary_terms_count}",
         f"Correction rules: {report.corrections_count}",
         "",
         "Python packages:",
-    ]
+        ]
+    )
 
     for package in report.packages:
         status = "ok" if package.available else "missing"

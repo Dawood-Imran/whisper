@@ -30,6 +30,12 @@ class CliTests(unittest.TestCase):
                 "12",
                 "--input-device",
                 "4",
+                "--model",
+                "small.en",
+                "--compute-type",
+                "int8",
+                "--beam-size",
+                "1",
                 "--no-paste",
                 "--language-hint",
                 "en",
@@ -43,6 +49,13 @@ class CliTests(unittest.TestCase):
         self.assertEqual(options.hotkey, "ctrl+alt+r")
         self.assertEqual(options.max_duration_seconds, 12)
         self.assertEqual(options.input_device, 4)
+        self.assertEqual(options.engine, "faster-whisper")
+        self.assertEqual(options.model_name, "small.en")
+        self.assertEqual(options.compute_type, "int8")
+        self.assertEqual(options.beam_size, 1)
+        self.assertEqual(options.language, "en")
+        self.assertTrue(options.vad_filter)
+        self.assertFalse(options.condition_on_previous_text)
         self.assertFalse(options.paste)
         self.assertEqual(options.language_hints, ("en",))
         self.assertFalse(options.vocabulary_enabled)

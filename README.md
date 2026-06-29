@@ -1,12 +1,14 @@
 # Voice Codex
 
-Voice Codex is a Linux command-line prototype for speaking a prompt, transcribing it with Deepgram Flux, and inserting or copying the result for use in Codex CLI.
+Voice Codex is a Linux command-line prototype for speaking a prompt, transcribing it locally with faster-whisper, and inserting or copying the result for use in Codex CLI.
 
-Phase 2 adds a foreground background-daemon workflow with a global toggle hotkey. The daemon records audio, streams it to Deepgram for transcription, and delivers text back to the focused terminal. Auto-submit remains disabled.
+Phase 2 adds a foreground background-daemon workflow with a global toggle hotkey. The daemon records audio, transcribes it, and delivers text back to the focused terminal. Auto-submit remains disabled.
 
-Phase 3 adds local vocabulary correction after Deepgram transcription. Correction rules are deterministic and user-controlled.
+Phase 3 adds local vocabulary correction after transcription. Correction rules are deterministic and user-controlled.
 
 Phase 4 adds user-level background service commands and best-effort paste into the active cursor.
+
+Phase 5 switches the default transcription engine from Deepgram Flux to local faster-whisper.
 
 ## Phase 1 Commands
 
@@ -17,11 +19,14 @@ Phase 4 adds user-level background service commands and best-effort paste into t
 
 Default transcription model:
 
-- Engine: `deepgram-flux`
-- Endpoint: `wss://api.deepgram.com/v2/listen`
-- Model: `flux-general-en`
-- API key environment variable: `DEEPGRAM_API_KEY`
-- Audio sent to Deepgram: `linear16`, `16000` Hz, mono
+- Engine: `faster-whisper`
+- Model: `small.en`
+- Device: `cpu`
+- Compute type: `int8`
+- CPU threads: `0` (all cores)
+- Beam size: `1`
+- Language: `en`
+- VAD filter: enabled
 
 See `TESTING.md` for setup and verification steps.
 
@@ -44,7 +49,7 @@ Example `corrections.toml`:
 "code x" = "Codex"
 ```
 
-Corrections run after Deepgram transcription and before clipboard insertion.
+Corrections run after transcription and before clipboard insertion.
 
 ## Daemon Usage
 
@@ -55,7 +60,7 @@ voice-codex-daemon
 Default hotkey:
 
 ```text
-F9
+Ctrl+Alt+Space
 ```
 
 Press once to start recording and press again to stop, transcribe, and copy or insert the result. The daemon uses desktop notifications for recording, transcription, copied/inserted, and error states. On Wayland, global keyboard listeners may be blocked by the desktop session; use `voice-codex-once` as the fallback while validating the daemon.
@@ -68,7 +73,7 @@ Install and start the user service:
 voice-codex service install --enable --start
 ```
 
-For background service API keys, create:
+The default faster-whisper engine does not require an API key. If you intentionally run Deepgram with `--engine deepgram-flux`, create:
 
 ```bash
 mkdir -p ~/.config/voice-codex
@@ -92,4 +97,4 @@ The service file is written to:
 ~/.config/systemd/user/voice-codexd.service
 ```
 
-On Wayland, active paste into the focused cursor requires `ydotool` and a running `ydotoold`. On Ubuntu these can be separate packages, and the `ydotoold` package may not ship a systemd service file. Without a running `ydotoold` socket, Voice Codex still copies the transcript to the clipboard.
+On Wayland, active insertion into the focused cursor requires `ydotool` and a running `ydotoold`. On Ubuntu these can be separate packages, and the `ydotoold` package may not ship a systemd service file. Without a running `ydotoold` socket, Voice Codex still copies the transcript to the clipboard.

@@ -1,29 +1,31 @@
-# Testing Voice Codex Phase 1
+# Testing Voice Codex
 
 This guide verifies the one-shot command, hotkey daemon, vocabulary corrections, and background service:
 
 ```text
-preflight -> recording -> Deepgram Flux transcription -> vocabulary corrections -> clipboard/direct insertion
+preflight -> recording -> faster-whisper transcription -> vocabulary corrections -> clipboard/direct insertion
 ```
 
-Phase 4 includes deterministic vocabulary corrections, user-level service management, and best-effort active cursor paste. It does not include fuzzy matching, silence detection, GUI, or auto-submit.
+Phase 5 uses local faster-whisper transcription by default, plus deterministic vocabulary corrections, user-level service management, and active cursor insertion. It does not include fuzzy matching, GUI, or auto-submit.
 
 ## Model Used
 
 Default transcription settings:
 
 ```text
-engine: deepgram-flux
-endpoint: wss://api.deepgram.com/v2/listen
-model: flux-general-en
-encoding: linear16
+engine: faster-whisper
+model: small.en
+device: cpu
+compute_type: int8
+cpu_threads: 0
+beam_size: 1
+language: en
+vad_filter: true
 sample_rate: 16000
 channels: 1
-chunk_ms: 80
-api_key_env: DEEPGRAM_API_KEY
 ```
 
-This follows `deepgram.md`: Flux requires `/v2/listen`, `flux-general-en` for English, and linear16 audio chunks. Do not use `/v1/listen` for Flux.
+The daemon loads the faster-whisper model once when the service starts. The first run may take longer if the model has not been downloaded yet.
 
 ## 1. Create A Virtual Environment
 
@@ -34,9 +36,9 @@ python -m pip install --upgrade pip
 python -m pip install -e .
 ```
 
-## 2. Configure Deepgram
+## 2. Optional Deepgram Configuration
 
-Set your API key in the environment:
+The default faster-whisper engine does not need an API key. If you intentionally use `--engine deepgram-flux`, set your API key in the environment:
 
 ```bash
 export DEEPGRAM_API_KEY="your_deepgram_api_key"
@@ -80,7 +82,7 @@ Expected output includes:
 
 - Python version.
 - Linux session type.
-- Deepgram engine, model, endpoint, and API key status.
+- Transcription engine, model, device, and compute settings.
 - Vocabulary term and correction counts.
 - Python package readiness.
 - Hotkey dependency readiness.
@@ -106,7 +108,7 @@ Dawood, test the Codex voice command.
 Expected behavior:
 
 1. A 3-second audio clip is recorded locally.
-2. The linear16 audio is streamed to Deepgram Flux.
+2. The WAV audio is transcribed locally with faster-whisper.
 3. The transcript is printed in the terminal.
 4. The transcript is copied to the clipboard if a supported clipboard tool exists.
 5. Nothing is auto-submitted to Codex.
@@ -151,12 +153,24 @@ voice-codex-once --duration 5 --paste-shortcut ctrl+v
 
 On Wayland, active insertion requires `ydotool` and `ydotoold`. If direct insertion is unavailable, manually paste the copied transcript into Codex CLI.
 
-## 8. Optional Deepgram Settings
+## 8. Optional Transcription Settings
+
+Use a different local faster-whisper model when needed:
+
+```bash
+voice-codex-once --model base.en --duration 5 --no-paste
+```
+
+Use Deepgram Flux only when you explicitly want the API backend:
+
+```bash
+voice-codex-once --engine deepgram-flux --model flux-general-en --duration 5 --no-paste
+```
 
 Use Flux multilingual only when needed:
 
 ```bash
-voice-codex-once --model flux-general-multi --language-hint en --duration 5 --no-paste
+voice-codex-once --engine deepgram-flux --model flux-general-multi --language-hint en --duration 5 --no-paste
 ```
 
 Do not pass `--language-hint` with the default `flux-general-en` model.
@@ -164,7 +178,7 @@ Do not pass `--language-hint` with the default `flux-general-en` model.
 If final Deepgram messages arrive slowly:
 
 ```bash
-voice-codex-once --duration 5 --close-timeout 15 --no-paste
+voice-codex-once --engine deepgram-flux --model flux-general-en --duration 5 --close-timeout 15 --no-paste
 ```
 
 ## 9. Configure Vocabulary Corrections
@@ -243,15 +257,15 @@ python -m voice_codex daemon
 Default hotkey:
 
 ```text
-F9
+Ctrl+Alt+Space
 ```
 
 Expected behavior:
 
 1. The daemon starts and logs the configured hotkey.
-2. Pressing `F9` starts recording.
-3. Pressing `F9` again stops recording.
-4. The daemon sends audio to Deepgram Flux.
+2. Pressing `Ctrl+Alt+Space` starts recording.
+3. Pressing `Ctrl+Alt+Space` again stops recording.
+4. The daemon transcribes audio with faster-whisper.
 5. The transcript is copied or inserted.
 6. The daemon returns to idle.
 7. You manually review and press Enter in Codex.
@@ -265,7 +279,7 @@ voice-codex-daemon --no-notify
 Use a custom hotkey if needed:
 
 ```bash
-voice-codex-daemon --hotkey '<ctrl>+<shift>+space'
+voice-codex-daemon --hotkey '<ctrl>+<alt>+r'
 ```
 
 Keep daemon audio for debugging:
@@ -276,7 +290,7 @@ voice-codex-daemon --keep-audio --audio-dir ./recordings
 
 On Wayland, the desktop session may block global keyboard listeners. If the daemon starts but never receives the hotkey, keep using `voice-codex-once` while we add a desktop-specific trigger path in a later phase.
 
-## 11. Test The Phase 4 Background Service
+## 11. Test The Background Service
 
 Install and start the user service:
 
@@ -284,7 +298,7 @@ Install and start the user service:
 voice-codex service install --enable --start
 ```
 
-Make sure the service can read the API key:
+If you run the service with `--engine deepgram-flux`, make sure the service can read the API key:
 
 ```bash
 mkdir -p ~/.config/voice-codex
@@ -317,13 +331,13 @@ Stop the background daemon:
 voice-codex service stop
 ```
 
-On Wayland, install active paste support:
+On Wayland, install active insertion support:
 
 ```bash
 sudo apt install ydotool ydotoold
 ```
 
-Depending on your distribution, `ydotoold` must also be running and your user may need access to `/dev/uinput`. `ydotool` by itself is only the client; direct paste will not work until a ydotool socket exists at `YDOTOOL_SOCKET`, `/tmp/.ydotool_socket`, or `/run/user/<uid>/.ydotool_socket`.
+Depending on your distribution, `ydotoold` must also be running and your user may need access to `/dev/uinput`. `ydotool` by itself is only the client; direct insertion will not work until a ydotool socket exists at `YDOTOOL_SOCKET`, `/tmp/.ydotool_socket`, or `/run/user/<uid>/.ydotool_socket`.
 
 On Ubuntu, the `ydotoold` package may install `/usr/bin/ydotoold` without installing a systemd unit. In that case, install the project-provided unit:
 
@@ -358,7 +372,17 @@ python -m pip install -e .
 
 If the daemon reports missing `pynput`, rerun the same install command.
 
+### Missing faster-whisper Package
+
+Reinstall dependencies:
+
+```bash
+python -m pip install -e .
+```
+
 ### Missing Deepgram API Key
+
+This only applies when using `--engine deepgram-flux`.
 
 Set the key:
 
@@ -395,11 +419,11 @@ voice-codex service status
 voice-codex service logs --lines 120
 ```
 
-If the service cannot find your API key, make sure it is available from the service working directory through `.env` or exported into the user service environment.
+If a Deepgram service cannot find your API key, make sure it is available from the service working directory through `.env` or exported into the user service environment.
 
-### Wayland Does Not Paste Into Cursor
+### Wayland Does Not Insert Into Cursor
 
-If preflight shows `clipboard-only`, install and configure `ydotool`. Clipboard copy still works without active paste.
+If preflight shows `clipboard-only`, install and configure `ydotool`. Clipboard copy still works without active insertion.
 
 ### No Microphone Devices
 
@@ -415,15 +439,15 @@ If multiple devices are listed, choose one:
 voice-codex-once --input-device 3 --duration 5 --no-paste
 ```
 
-### Network Or API Failure
+### Model Download, Network, Or API Failure
 
-Deepgram transcription requires outbound network access to:
+The first faster-whisper run may need network access to download `small.en`. Deepgram transcription requires outbound network access to:
 
 ```text
 wss://api.deepgram.com/v2/listen
 ```
 
-If the command fails during transcription, verify the API key, network access, and Deepgram account status.
+If the command fails during transcription, verify model availability, network access, API key, and Deepgram account status depending on the selected engine.
 
 ### Bad Corrections File
 
@@ -454,12 +478,12 @@ python -m pytest
 
 ## Success Criteria
 
-Phase 1 is working when:
+Voice Codex is working when:
 
 - `voice-codex-preflight` gives clear environment diagnostics.
 - `voice-codex-once` records without crashing.
 - `voice-codex-daemon` starts and listens for the configured hotkey.
-- Deepgram Flux produces readable transcript text.
+- faster-whisper produces readable transcript text.
 - Explicit vocabulary corrections are applied before copy/insert.
 - The transcript is copied to the clipboard or inserted into the focused terminal.
 - `voice-codex service start` can run the daemon in the background.
