@@ -18,29 +18,34 @@ Auto-submit must stay disabled by default.
 
 ## Current Phase
 
-The active branch for the second implementation slice is `phase-2`.
+The active branch for the third implementation slice is `phase-3`.
 
-Phase 2 turns the working one-shot flow into a foreground daemon with a global hotkey. Do not add systemd installation, GUI, auto-submit, or silence detection yet.
+Phase 3 adds vocabulary and deterministic correction support after Deepgram transcription. Do not add fuzzy matching, systemd installation, GUI, auto-submit, or silence detection yet.
 
-Phase 2 should prove:
+Phase 3 should prove:
 
-- The user can run `voice-codex-daemon`.
-- The configured hotkey toggles recording.
-- Stopping a recording transcribes through Deepgram Flux.
-- The result is copied or inserted into the focused terminal.
-- The daemon returns to idle after processing.
+- Vocabulary and correction files can be loaded safely.
+- Explicit correction rules are applied after Deepgram transcription.
+- Corrected text is what gets printed, copied, or inserted.
+- One-shot and daemon flows share the same correction behavior.
+- Missing vocabulary files do not break the app.
 
-## Phase 2 Scope
+## Phase 3 Scope
 
-Keep the existing Phase 1 commands:
+Keep the existing commands:
 
 - `voice-codex-preflight`
 - `voice-codex-once`
-
-Add:
-
 - `voice-codex-daemon`
 - `voice-codex daemon`
+
+Add support for:
+
+- `~/.config/voice-codex/vocabulary.txt`
+- `~/.config/voice-codex/corrections.toml`
+- `--vocab-file`
+- `--corrections-file`
+- `--no-vocabulary`
 
 `voice-codex-preflight` should inspect:
 
@@ -61,6 +66,13 @@ Add:
 - Attempt insertion into the active terminal when supported.
 - Leave final submission to the user.
 
+Vocabulary correction should:
+
+- Run after Deepgram transcription and before clipboard insertion.
+- Apply only explicit deterministic rules.
+- Avoid fuzzy matching in Phase 3.
+- Treat missing files as empty configuration.
+
 ## Recommended Defaults
 
 - Transcription engine: `deepgram-flux`
@@ -73,6 +85,8 @@ Add:
 - Maximum daemon recording duration: `45` seconds
 - First insertion mode: clipboard plus X11 paste where available
 - Hotkey default: `Ctrl+Alt+R`, not `Ctrl+R`
+- Vocabulary file: `~/.config/voice-codex/vocabulary.txt`
+- Corrections file: `~/.config/voice-codex/corrections.toml`
 
 ## Implementation Guidance
 
@@ -86,6 +100,7 @@ Suggested package modules:
 - `voice_codex/inserter.py`
 - `voice_codex/hotkeys.py`
 - `voice_codex/daemon.py`
+- `voice_codex/vocabulary.py`
 - `voice_codex/preflight.py`
 - `voice_codex/cli.py`
 
@@ -132,6 +147,13 @@ For Phase 2, also verify:
 - The daemon starts and reports the configured hotkey.
 - The hotkey starts/stops recording in the target desktop session.
 - If global hotkeys are blocked on Wayland, the daemon reports the limitation clearly and `voice-codex-once` remains usable.
+
+For Phase 3, also verify:
+
+- `voice-codex-preflight` reports vocabulary and correction counts.
+- Correction rules apply in `voice-codex-once`.
+- Correction rules apply in `voice-codex-daemon`.
+- `--no-vocabulary` disables correction behavior.
 
 Add automated tests for deterministic code where practical, especially config parsing, vocabulary correction, and insertion command selection. Do not block the first prototype on full hardware-dependent test automation.
 

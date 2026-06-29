@@ -6,22 +6,22 @@ The canonical agent instruction file is `AGENTS.md`. Use that file for detailed 
 
 ## Active Phase
 
-Branch: `phase-2`
+Branch: `phase-3`
 
-Phase 2 should prove the hotkey daemon workflow:
+Phase 3 should prove vocabulary and correction support:
 
 1. Run a preflight check.
-2. Run `voice-codex-daemon`.
-3. Press `Ctrl+Alt+R` to start recording.
-4. Press `Ctrl+Alt+R` again to stop recording.
-5. Transcribe with Deepgram Flux using `DEEPGRAM_API_KEY`.
-6. Copy or insert the result into the focused terminal.
-7. Keep manual review and manual Enter.
+2. Load vocabulary and correction files.
+3. Transcribe with Deepgram Flux using `DEEPGRAM_API_KEY`.
+4. Apply explicit deterministic corrections.
+5. Copy or insert the corrected result into the focused terminal.
+6. Keep manual review and manual Enter.
 
 ## Deferred Until Later
 
 - User-level systemd service.
 - Silence detection.
+- Fuzzy vocabulary matching.
 - Wayland-specific polish beyond safe clipboard fallback.
 - GUI.
 - Auto-submit.

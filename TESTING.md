@@ -3,10 +3,10 @@
 This guide verifies the Phase 1 one-shot prototype and the Phase 2 hotkey daemon:
 
 ```text
-preflight -> fixed recording -> Deepgram Flux transcription -> clipboard/direct insertion
+preflight -> recording -> Deepgram Flux transcription -> vocabulary corrections -> clipboard/direct insertion
 ```
 
-Phase 2 includes a foreground daemon with a global toggle hotkey. It does not include systemd installation, silence detection, GUI, or auto-submit.
+Phase 3 includes deterministic vocabulary corrections. It does not include fuzzy matching, systemd installation, silence detection, GUI, or auto-submit.
 
 ## Model Used
 
@@ -81,6 +81,7 @@ Expected output includes:
 - Python version.
 - Linux session type.
 - Deepgram engine, model, endpoint, and API key status.
+- Vocabulary term and correction counts.
 - Python package readiness.
 - Hotkey dependency readiness.
 - System command readiness.
@@ -165,7 +166,66 @@ If final Deepgram messages arrive slowly:
 voice-codex-once --duration 5 --close-timeout 15 --no-paste
 ```
 
-## 9. Test The Phase 2 Daemon
+## 9. Configure Vocabulary Corrections
+
+Create the default config directory:
+
+```bash
+mkdir -p ~/.config/voice-codex
+```
+
+Create vocabulary terms:
+
+```bash
+cat > ~/.config/voice-codex/vocabulary.txt <<'EOF'
+Dawood
+Codex
+FastAPI
+PostgreSQL
+JWT
+Deepgram
+EOF
+```
+
+Create deterministic correction rules:
+
+```bash
+cat > ~/.config/voice-codex/corrections.toml <<'EOF'
+[corrections]
+"the wood" = "Dawood"
+"da wood" = "Dawood"
+"fast api" = "FastAPI"
+"post gray sql" = "PostgreSQL"
+"j w t" = "JWT"
+"code x" = "Codex"
+EOF
+```
+
+Run preflight:
+
+```bash
+voice-codex-preflight
+```
+
+Expected output should include nonzero correction counts if the file exists.
+
+Disable corrections for comparison:
+
+```bash
+voice-codex-once --duration 5 --no-vocabulary --no-paste
+```
+
+Use custom files:
+
+```bash
+voice-codex-once \
+  --vocab-file ./vocabulary.txt \
+  --corrections-file ./corrections.toml \
+  --duration 5 \
+  --no-paste
+```
+
+## 10. Test The Phase 2 Daemon
 
 Start the daemon in a terminal:
 
@@ -209,7 +269,7 @@ voice-codex-daemon --keep-audio --audio-dir ./recordings
 
 On Wayland, the desktop session may block global keyboard listeners. If the daemon starts but never receives the hotkey, keep using `voice-codex-once` while we add a desktop-specific trigger path in a later phase.
 
-## 10. Common Failure Modes
+## 11. Common Failure Modes
 
 ### Missing Python Packages
 
@@ -273,7 +333,16 @@ wss://api.deepgram.com/v2/listen
 
 If the command fails during transcription, verify the API key, network access, and Deepgram account status.
 
-## 11. Developer Checks
+### Bad Corrections File
+
+If preflight reports a corrections parse error, check that the file has this shape:
+
+```toml
+[corrections]
+"wrong phrase" = "CorrectPhrase"
+```
+
+## 12. Developer Checks
 
 Run syntax and unit checks:
 
@@ -298,5 +367,6 @@ Phase 1 is working when:
 - `voice-codex-once` records without crashing.
 - `voice-codex-daemon` starts and listens for the configured hotkey.
 - Deepgram Flux produces readable transcript text.
+- Explicit vocabulary corrections are applied before copy/insert.
 - The transcript is copied to the clipboard or inserted into the focused terminal.
 - The command does not auto-submit to Codex.

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 
 @dataclass(frozen=True)
@@ -33,7 +34,15 @@ class DaemonDefaults:
     keep_audio: bool = False
 
 
+@dataclass(frozen=True)
+class VocabularyDefaults:
+    enabled: bool = True
+    vocab_file: Path = Path("~/.config/voice-codex/vocabulary.txt")
+    corrections_file: Path = Path("~/.config/voice-codex/corrections.toml")
+
+
 RECORDING_DEFAULTS = RecordingDefaults()
 TRANSCRIPTION_DEFAULTS = TranscriptionDefaults()
 INSERTION_DEFAULTS = InsertionDefaults()
 DAEMON_DEFAULTS = DaemonDefaults()
+VOCABULARY_DEFAULTS = VocabularyDefaults()

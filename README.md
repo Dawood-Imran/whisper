@@ -4,6 +4,8 @@ Voice Codex is a Linux command-line prototype for speaking a prompt, transcribin
 
 Phase 2 adds a foreground background-daemon workflow with a global toggle hotkey. The daemon records audio, streams it to Deepgram for transcription, and delivers text back to the focused terminal. Auto-submit remains disabled.
 
+Phase 3 adds local vocabulary correction after Deepgram transcription. Correction rules are deterministic and user-controlled.
+
 ## Phase 1 Commands
 
 - `voice-codex-preflight`
@@ -19,6 +21,27 @@ Default transcription model:
 - Audio sent to Deepgram: `linear16`, `16000` Hz, mono
 
 See `TESTING.md` for setup and verification steps.
+
+## Vocabulary Corrections
+
+Default files:
+
+```text
+~/.config/voice-codex/vocabulary.txt
+~/.config/voice-codex/corrections.toml
+```
+
+Example `corrections.toml`:
+
+```toml
+[corrections]
+"the wood" = "Dawood"
+"fast api" = "FastAPI"
+"j w t" = "JWT"
+"code x" = "Codex"
+```
+
+Corrections run after Deepgram transcription and before clipboard insertion.
 
 ## Daemon Usage
 

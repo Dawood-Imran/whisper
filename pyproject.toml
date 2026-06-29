@@ -13,6 +13,7 @@ dependencies = [
   "pynput>=1.7.7",
   "python-dotenv>=1.0.0",
   "sounddevice>=0.4.6",
+  "tomli>=2.0; python_version<'3.11'",
   "websockets>=12,<14",
 ]
 

@@ -12,12 +12,14 @@ from voice_codex.config import (
     INSERTION_DEFAULTS,
     RECORDING_DEFAULTS,
     TRANSCRIPTION_DEFAULTS,
+    VOCABULARY_DEFAULTS,
 )
 from voice_codex.daemon import DaemonOptions, run_daemon
 from voice_codex.inserter import InsertionError, insert_text
 from voice_codex.preflight import format_report, run_preflight
 from voice_codex.recorder import RecordingError, record_to_wav
 from voice_codex.transcriber import TranscriptionError, transcribe_audio
+from voice_codex.vocabulary import VocabularyConfig, VocabularyError, apply_vocabulary
 
 
 def preflight_main(argv: list[str] | None = None) -> int:
@@ -181,6 +183,7 @@ def build_once_parser(prog: str, *, add_help: bool = True) -> argparse.ArgumentP
         action="store_true",
         help="Do not print the transcript to stdout.",
     )
+    add_vocabulary_arguments(parser)
     return parser
 
 
@@ -285,7 +288,28 @@ def build_daemon_parser(prog: str, *, add_help: bool = True) -> argparse.Argumen
         choices=("debug", "info", "warning", "error"),
         help="Daemon log level. Default: info",
     )
+    add_vocabulary_arguments(parser)
     return parser
+
+
+def add_vocabulary_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--no-vocabulary",
+        action="store_true",
+        help="Disable vocabulary files and deterministic correction rules.",
+    )
+    parser.add_argument(
+        "--vocab-file",
+        type=Path,
+        default=VOCABULARY_DEFAULTS.vocab_file,
+        help=f"Vocabulary terms file. Default: {VOCABULARY_DEFAULTS.vocab_file}",
+    )
+    parser.add_argument(
+        "--corrections-file",
+        type=Path,
+        default=VOCABULARY_DEFAULTS.corrections_file,
+        help=f"TOML correction rules file. Default: {VOCABULARY_DEFAULTS.corrections_file}",
+    )
 
 
 def run_once(args: argparse.Namespace) -> int:
@@ -339,22 +363,29 @@ def run_once(args: argparse.Namespace) -> int:
             print("No speech text was detected.", file=sys.stderr)
             return 3
 
+        vocabulary = apply_vocabulary(
+            transcription.text,
+            _vocabulary_config_from_args(args),
+        )
+
         print(
             "Transcription complete: "
-            f"{len(transcription.text)} chars, "
+            f"{len(vocabulary.text)} chars, "
             f"{transcription.event_count} Deepgram events, "
             f"{transcription.elapsed_seconds:.2f}s."
         )
+        if vocabulary.correction_count:
+            print(f"Applied {vocabulary.correction_count} vocabulary corrections.")
 
         if not args.no_echo:
             print("")
             print("Transcript:")
-            print(transcription.text)
+            print(vocabulary.text)
             print("")
 
         try:
             insertion = insert_text(
-                transcription.text,
+                vocabulary.text,
                 paste=not args.no_paste,
                 paste_shortcut=args.paste_shortcut,
             )
@@ -370,7 +401,7 @@ def run_once(args: argparse.Namespace) -> int:
             print("Review the inserted Codex prompt, then press Enter when ready.")
 
         return 0
-    except (RecordingError, TranscriptionError, ValueError) as exc:
+    except (RecordingError, TranscriptionError, VocabularyError, ValueError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 2
     finally:
@@ -407,6 +438,9 @@ def _daemon_options_from_args(args: argparse.Namespace) -> DaemonOptions:
         paste=not args.no_paste,
         paste_shortcut=args.paste_shortcut,
         audio_dir=args.audio_dir,
+        vocabulary_enabled=not args.no_vocabulary,
+        vocab_file=args.vocab_file,
+        corrections_file=args.corrections_file,
     )
 
 
@@ -414,6 +448,14 @@ def _configure_logging(level: str) -> None:
     logging.basicConfig(
         level=getattr(logging, level.upper()),
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+
+
+def _vocabulary_config_from_args(args: argparse.Namespace) -> VocabularyConfig:
+    return VocabularyConfig(
+        enabled=not args.no_vocabulary,
+        vocab_file=args.vocab_file,
+        corrections_file=args.corrections_file,
     )
 
 

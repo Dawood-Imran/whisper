@@ -8,8 +8,9 @@ import sys
 from dataclasses import dataclass
 from typing import Iterable
 
-from voice_codex.config import TRANSCRIPTION_DEFAULTS
+from voice_codex.config import TRANSCRIPTION_DEFAULTS, VOCABULARY_DEFAULTS
 from voice_codex.hotkeys import session_warns_for_hotkeys
+from voice_codex.vocabulary import VocabularyError, load_corrections, load_vocabulary_terms
 
 
 @dataclass(frozen=True)
@@ -47,6 +48,8 @@ class PreflightReport:
     default_input_device: int | None
     api_key_env: str
     api_key_configured: bool
+    vocabulary_terms_count: int
+    corrections_count: int
     clipboard_backend: str | None
     insertion_mode: str
     warnings: tuple[str, ...]
@@ -206,6 +209,8 @@ def run_preflight() -> PreflightReport:
     insertion_mode = choose_insertion_mode(session_type, tools, clipboard_backend)
     api_key_env = TRANSCRIPTION_DEFAULTS.api_key_env
     api_key_configured = bool(os.environ.get(api_key_env, "").strip())
+    vocabulary_terms_count = 0
+    corrections_count = 0
 
     package_map = {package.import_name: package.available for package in packages}
     tool_map = {tool.name: tool.available for tool in tools}
@@ -231,6 +236,12 @@ def run_preflight() -> PreflightReport:
         failures.append(
             f"Environment variable '{api_key_env}' is missing; Deepgram API transcription cannot run."
         )
+
+    try:
+        vocabulary_terms_count = len(load_vocabulary_terms(VOCABULARY_DEFAULTS.vocab_file))
+        corrections_count = len(load_corrections(VOCABULARY_DEFAULTS.corrections_file))
+    except VocabularyError as exc:
+        failures.append(str(exc))
 
     hotkey_warning = session_warns_for_hotkeys(session_type)
     if hotkey_warning:
@@ -272,6 +283,8 @@ def run_preflight() -> PreflightReport:
         default_input_device=default_input,
         api_key_env=api_key_env,
         api_key_configured=api_key_configured,
+        vocabulary_terms_count=vocabulary_terms_count,
+        corrections_count=corrections_count,
         clipboard_backend=clipboard_backend,
         insertion_mode=insertion_mode,
         warnings=tuple(warnings),
@@ -291,6 +304,8 @@ def format_report(report: PreflightReport) -> str:
         f"Deepgram endpoint: {TRANSCRIPTION_DEFAULTS.endpoint}",
         f"Deepgram API key ({report.api_key_env}): "
         f"{'configured' if report.api_key_configured else 'missing'}",
+        f"Vocabulary terms: {report.vocabulary_terms_count}",
+        f"Correction rules: {report.corrections_count}",
         "",
         "Python packages:",
     ]

@@ -28,6 +28,7 @@ class CliTests(unittest.TestCase):
                 "--no-paste",
                 "--language-hint",
                 "en",
+                "--no-vocabulary",
             ]
         )
 
@@ -38,6 +39,7 @@ class CliTests(unittest.TestCase):
         self.assertEqual(options.input_device, 4)
         self.assertFalse(options.paste)
         self.assertEqual(options.language_hints, ("en",))
+        self.assertFalse(options.vocabulary_enabled)
 
 
 if __name__ == "__main__":

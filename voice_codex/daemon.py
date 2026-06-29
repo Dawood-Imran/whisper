@@ -13,11 +13,13 @@ from voice_codex.config import (
     INSERTION_DEFAULTS,
     RECORDING_DEFAULTS,
     TRANSCRIPTION_DEFAULTS,
+    VOCABULARY_DEFAULTS,
 )
 from voice_codex.hotkeys import PynputHotkeyListener, session_warns_for_hotkeys
 from voice_codex.inserter import InsertionError, insert_text
 from voice_codex.recorder import RecordingError, ToggleWavRecorder
 from voice_codex.transcriber import TranscriptionError, transcribe_audio
+from voice_codex.vocabulary import VocabularyConfig, VocabularyError, apply_vocabulary
 
 
 LOGGER = logging.getLogger("voice_codex.daemon")
@@ -40,6 +42,9 @@ class DaemonOptions:
     paste: bool = INSERTION_DEFAULTS.paste
     paste_shortcut: str = INSERTION_DEFAULTS.paste_shortcut
     audio_dir: Path | None = None
+    vocabulary_enabled: bool = VOCABULARY_DEFAULTS.enabled
+    vocab_file: Path = VOCABULARY_DEFAULTS.vocab_file
+    corrections_file: Path = VOCABULARY_DEFAULTS.corrections_file
 
 
 class VoiceCodexDaemon:
@@ -184,14 +189,28 @@ class VoiceCodexDaemon:
                 LOGGER.warning("Deepgram returned no transcript text.")
                 return
 
+            vocabulary = apply_vocabulary(
+                transcription.text,
+                VocabularyConfig(
+                    enabled=self.options.vocabulary_enabled,
+                    vocab_file=self.options.vocab_file,
+                    corrections_file=self.options.corrections_file,
+                ),
+            )
+            if vocabulary.correction_count:
+                LOGGER.info(
+                    "Applied %d vocabulary corrections before copying.",
+                    vocabulary.correction_count,
+                )
+
             LOGGER.info(
                 "Transcribed %d chars from %d Deepgram events in %.2fs. Copying result.",
-                len(transcription.text),
+                len(vocabulary.text),
                 transcription.event_count,
                 transcription.elapsed_seconds,
             )
             insertion = insert_text(
-                transcription.text,
+                vocabulary.text,
                 paste=self.options.paste,
                 paste_shortcut=self.options.paste_shortcut,
             )
@@ -200,7 +219,7 @@ class VoiceCodexDaemon:
                 LOGGER.info("Paste manually into Codex CLI, then press Enter when ready.")
             else:
                 LOGGER.info("Review the inserted Codex prompt, then press Enter when ready.")
-        except (TranscriptionError, InsertionError, ValueError) as exc:
+        except (TranscriptionError, InsertionError, VocabularyError, ValueError) as exc:
             LOGGER.error("Could not process recording: %s", exc)
         except Exception:
             LOGGER.exception("Unexpected daemon processing error.")
