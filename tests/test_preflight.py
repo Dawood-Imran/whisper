@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 
 from voice_codex.preflight import (
     ToolCheck,
@@ -37,10 +38,35 @@ class PreflightSelectionTests(unittest.TestCase):
     def test_clipboard_only_when_no_direct_paste(self) -> None:
         tools = (ToolCheck("wl-copy", "/usr/bin/wl-copy"),)
 
-        self.assertEqual(
-            choose_insertion_mode("wayland", tools, "wl-copy"),
-            "clipboard-only",
+        with patch("voice_codex.preflight.ydotool_ready", return_value=False):
+            self.assertEqual(
+                choose_insertion_mode("wayland", tools, "wl-copy"),
+                "clipboard-only",
+            )
+
+    def test_wayland_paste_requires_ydotool_socket(self) -> None:
+        tools = (
+            ToolCheck("wl-copy", "/usr/bin/wl-copy"),
+            ToolCheck("ydotool", "/usr/bin/ydotool"),
         )
+
+        with patch("voice_codex.preflight.ydotool_ready", return_value=True):
+            self.assertEqual(
+                choose_insertion_mode("wayland", tools, "wl-copy"),
+                "wayland-ydotool-type",
+            )
+
+    def test_unknown_session_can_use_ydotool_when_socket_is_ready(self) -> None:
+        tools = (
+            ToolCheck("wl-copy", "/usr/bin/wl-copy"),
+            ToolCheck("ydotool", "/usr/bin/ydotool"),
+        )
+
+        with patch("voice_codex.preflight.ydotool_ready", return_value=True):
+            self.assertEqual(
+                choose_insertion_mode("unknown", tools, "wl-copy"),
+                "ydotool-type",
+            )
 
     def test_insertion_unavailable_without_clipboard(self) -> None:
         tools = (ToolCheck("ffmpeg", "/usr/bin/ffmpeg"),)

@@ -18,6 +18,17 @@ from voice_codex.daemon import DaemonOptions, run_daemon
 from voice_codex.inserter import InsertionError, insert_text
 from voice_codex.preflight import format_report, run_preflight
 from voice_codex.recorder import RecordingError, record_to_wav
+from voice_codex.service import (
+    ServiceError,
+    disable_service,
+    enable_service,
+    install_service,
+    restart_service,
+    service_logs,
+    service_status,
+    start_service,
+    stop_service,
+)
 from voice_codex.transcriber import TranscriptionError, transcribe_audio
 from voice_codex.vocabulary import VocabularyConfig, VocabularyError, apply_vocabulary
 
@@ -45,6 +56,12 @@ def daemon_main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     _configure_logging(args.log_level)
     return run_daemon(_daemon_options_from_args(args))
+
+
+def service_main(argv: list[str] | None = None) -> int:
+    parser = build_service_parser("voice-codex-service")
+    args = parser.parse_args(argv)
+    return run_service_command(args)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -75,6 +92,14 @@ def main(argv: list[str] | None = None) -> int:
         help="Run the background hotkey daemon.",
     )
 
+    service_parser = build_service_parser("voice-codex service", add_help=False)
+    subparsers.add_parser(
+        "service",
+        parents=[service_parser],
+        add_help=True,
+        help="Install and control the user background service.",
+    )
+
     args = parser.parse_args(argv)
 
     if args.command == "preflight":
@@ -86,6 +111,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "daemon":
         _configure_logging(args.log_level)
         return run_daemon(_daemon_options_from_args(args))
+
+    if args.command == "service":
+        return run_service_command(args)
 
     parser.error(f"Unknown command: {args.command}")
     return 2
@@ -288,8 +316,120 @@ def build_daemon_parser(prog: str, *, add_help: bool = True) -> argparse.Argumen
         choices=("debug", "info", "warning", "error"),
         help="Daemon log level. Default: info",
     )
+    parser.add_argument(
+        "--no-notify",
+        action="store_true",
+        help="Disable desktop notifications from the daemon.",
+    )
     add_vocabulary_arguments(parser)
     return parser
+
+
+def build_service_parser(prog: str, *, add_help: bool = True) -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog=prog,
+        description="Install and control the Voice Codex user background service.",
+        add_help=add_help,
+    )
+    subparsers = parser.add_subparsers(dest="service_command", required=True)
+
+    install_parser = subparsers.add_parser("install", help="Install the user systemd service.")
+    install_parser.add_argument(
+        "--working-directory",
+        type=Path,
+        default=Path.cwd(),
+        help="Working directory for the daemon service. Default: current directory.",
+    )
+    install_parser.add_argument(
+        "--log-level",
+        default="info",
+        choices=("debug", "info", "warning", "error"),
+        help="Daemon log level for the service. Default: info",
+    )
+    install_parser.add_argument(
+        "--enable",
+        action="store_true",
+        help="Enable the service to start on login after installing.",
+    )
+    install_parser.add_argument(
+        "--start",
+        action="store_true",
+        help="Start the service after installing.",
+    )
+    install_parser.add_argument(
+        "daemon_args",
+        nargs=argparse.REMAINDER,
+        help="Optional daemon args after --, for example: -- --hotkey '<ctrl>+<alt>+r'",
+    )
+
+    subparsers.add_parser("start", help="Start the user service.")
+    subparsers.add_parser("stop", help="Stop the user service.")
+    subparsers.add_parser("restart", help="Restart the user service.")
+    subparsers.add_parser("enable", help="Enable service start on login.")
+    subparsers.add_parser("disable", help="Disable service start on login.")
+    subparsers.add_parser("status", help="Show service status.")
+    logs_parser = subparsers.add_parser("logs", help="Show recent service logs.")
+    logs_parser.add_argument("--lines", type=int, default=80, help="Number of log lines.")
+    return parser
+
+
+def run_service_command(args: argparse.Namespace) -> int:
+    try:
+        command = args.service_command
+        if command == "install":
+            daemon_args = tuple(arg for arg in args.daemon_args if arg != "--")
+            result = install_service(
+                working_directory=args.working_directory.expanduser().resolve(),
+                log_level=args.log_level,
+                extra_args=daemon_args,
+            )
+            print(f"Installed user service: {result.service_path}")
+            if args.enable:
+                enable_service()
+                print("Enabled service start on login.")
+            if args.start:
+                start_service()
+                print("Started voice-codexd.service.")
+            return 0
+
+        if command == "start":
+            start_service()
+            print("Started voice-codexd.service.")
+            return 0
+
+        if command == "stop":
+            stop_service()
+            print("Stopped voice-codexd.service.")
+            return 0
+
+        if command == "restart":
+            restart_service()
+            print("Restarted voice-codexd.service.")
+            return 0
+
+        if command == "enable":
+            enable_service()
+            print("Enabled voice-codexd.service.")
+            return 0
+
+        if command == "disable":
+            disable_service()
+            print("Disabled voice-codexd.service.")
+            return 0
+
+        if command == "status":
+            print(service_status())
+            return 0
+
+        if command == "logs":
+            print(service_logs(lines=args.lines))
+            return 0
+    except ServiceError as exc:
+        print(f"Service error: {exc}", file=sys.stderr)
+        return 2
+
+    print(f"Unknown service command: {args.service_command}", file=sys.stderr)
+    return 2
 
 
 def add_vocabulary_arguments(parser: argparse.ArgumentParser) -> None:
@@ -426,6 +566,7 @@ def _daemon_options_from_args(args: argparse.Namespace) -> DaemonOptions:
         hotkey=args.hotkey,
         max_duration_seconds=args.max_duration,
         keep_audio=args.keep_audio,
+        notifications_enabled=not args.no_notify,
         sample_rate=args.sample_rate,
         channels=args.channels,
         input_device=_coerce_input_device(args.input_device),

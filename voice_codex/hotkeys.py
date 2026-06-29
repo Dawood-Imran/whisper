@@ -43,7 +43,7 @@ def session_warns_for_hotkeys(session_type: str | None = None) -> str | None:
         return (
             "Wayland sessions may block global keyboard listeners. If the daemon "
             "does not receive hotkeys, use voice-codex-once as the fallback or "
-            "switch to an X11 session for Phase 2 testing."
+            "switch to an X11 session for daemon testing."
         )
     return None
 
